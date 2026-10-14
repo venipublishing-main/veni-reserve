@@ -53,7 +53,15 @@ No Cloudflare deployment is provisioned by the application scaffold. A staging
 Cloudflare deployment requires separate explicit authorisation. See the
 [engineering environment conventions](engineering/README.md#environment-conventions).
 
-Production should be provisioned only when the pilot is approaching real production use. Veni Flow should move to paid production infrastructure when the first paying customer is landed or production-grade requirements justify it.
+Under Architecture Reconciliation AR-007, production infrastructure is provisioned
+when the M0–M14 implementation and launch-readiness gates justify production use.
+VVB / Tenant 001 is itself a legitimate production pilot. PROD is not provisioned
+merely because a paying customer exists; commercial payment status is not the
+production-environment trigger.
+
+Paid infrastructure or tier upgrades occur when production safety, capacity,
+backup/recovery, provider capability, or other evidenced production requirements
+justify them.
 
 ## Environment naming
 
