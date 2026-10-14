@@ -25,4 +25,6 @@ Place migrations under:
 
 `supabase/migrations/`
 
-The application stack and initial schema are intentionally not created by this repository bootstrap; those should follow the approved Veni Reserve technical design.
+The application shell is established in M0.1. The initial schema and local database
+tooling remain deferred to M1 and must follow the approved Veni Reserve technical
+design. See the [migration convention](migrations/README.md).

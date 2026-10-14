@@ -48,6 +48,11 @@ Current development model:
 - STG: `vf-reserve-stg`
 - PROD: not yet created
 
+M0.1 uses React Router v8 and the Cloudflare Vite plugin for local Workers SSR.
+No Cloudflare deployment is provisioned by the application scaffold. A staging
+Cloudflare deployment requires separate explicit authorisation. See the
+[engineering environment conventions](engineering/README.md#environment-conventions).
+
 Production should be provisioned only when the pilot is approaching real production use. Veni Flow should move to paid production infrastructure when the first paying customer is landed or production-grade requirements justify it.
 
 ## Environment naming

@@ -1,0 +1,10 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "vf-reserve-dev",
+  "compatibility_date": "2026-10-06",
+  "main": "./workers/app.ts",
+  "vars": {
+    "VENI_PRODUCT": "reserve",
+    "VENI_ENV": "dev"
+  }
+}

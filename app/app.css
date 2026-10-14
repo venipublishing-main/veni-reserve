@@ -1,0 +1,21 @@
+@import "tailwindcss" source(".");
+
+:root {
+  --vr-color-primary: #405c50;
+  --vr-color-background: #fafaf7;
+  --vr-color-text: #202a25;
+  --vr-radius-md: 0.5rem;
+}
+
+@theme inline {
+  --color-primary: var(--vr-color-primary);
+  --color-background: var(--vr-color-background);
+  --color-foreground: var(--vr-color-text);
+  --radius-md: var(--vr-radius-md);
+  --font-sans: ui-sans-serif, system-ui, sans-serif;
+}
+
+html,
+body {
+  @apply bg-background text-foreground font-sans;
+}

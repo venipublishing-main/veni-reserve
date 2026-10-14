@@ -45,8 +45,16 @@ Detailed product planning, infrastructure ledgers, security inventories, billing
 
 ## Stack status
 
-The application framework and deployment platform are not locked by this bootstrap. Do not introduce framework-specific architecture merely to populate the repository.
+The approved M0.1 foundation uses React Router v8 Framework Mode, React,
+TypeScript, Vite, Tailwind CSS v4, and Cloudflare Workers SSR through the official
+Cloudflare Vite plugin. Tooling uses Node 24 LTS and an exact pnpm 12 version
+pinned in `package.json`.
+
+See [local setup and engineering conventions](docs/engineering/README.md) and
+[ADR 0001](docs/adr/0001-framework-runtime.md).
 
 ## Status
 
-Initial repository and infrastructure bootstrap.
+M0.1 application shell: `/` and `/health`, local Workers runtime, Vitest, ESLint,
+and CI validation. Database/domain implementation starts in M1. Cloudflare
+deployment and Supabase linking require separate explicit instructions.

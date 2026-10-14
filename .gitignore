@@ -29,3 +29,11 @@ Thumbs.db
 # Temporary files and caches
 .tmp/
 .cache/
+
+# Framework/runtime generated state and local secrets
+.react-router/
+.wrangler/
+.mf/
+.dev.vars*
+worker-configuration.d.ts
+*.tsbuildinfo
