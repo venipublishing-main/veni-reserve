@@ -49,8 +49,11 @@ Current development model:
 - PROD: not yet created
 
 M0.1 uses React Router v8 and the Cloudflare Vite plugin for local Workers SSR.
-No Cloudflare deployment is provisioned by the application scaffold. A staging
-Cloudflare deployment requires separate explicit authorisation. See the
+M0.2 authorises one non-production Cloudflare Worker, `vf-reserve-stg`, addressed
+through `workers.dev`. Its explicit `stg` environment is selected at Vite build
+time and contains only `VENI_PRODUCT=reserve` and `VENI_ENV=stg`. No production
+Worker, custom domain, DNS configuration, or Supabase connection is configured.
+See the [staging deployment procedure](engineering/README.md#m0-staging-deployment) and
 [engineering environment conventions](engineering/README.md#environment-conventions).
 
 Under Architecture Reconciliation AR-007, production infrastructure is provisioned

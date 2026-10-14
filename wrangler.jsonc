@@ -6,5 +6,15 @@
   "vars": {
     "VENI_PRODUCT": "reserve",
     "VENI_ENV": "dev"
+  },
+  "env": {
+    "stg": {
+      "name": "vf-reserve-stg",
+      "workers_dev": true,
+      "vars": {
+        "VENI_PRODUCT": "reserve",
+        "VENI_ENV": "stg"
+      }
+    }
   }
 }
