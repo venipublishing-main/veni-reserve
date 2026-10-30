@@ -9,6 +9,7 @@
     "tests/**/*",
     "worker-configuration.d.ts"
   ],
+  "exclude": ["tests/database/**"],
   "compilerOptions": {
     "composite": true,
     "strict": true,
