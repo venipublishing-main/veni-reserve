@@ -1,6 +1,6 @@
 {
   "extends": "./tsconfig.json",
-  "include": ["vite.config.ts", "vitest.config.ts", "react-router.config.ts", "tests/database/run.mjs"],
+  "include": ["vite.config.ts", "vitest.config.ts", "react-router.config.ts", "tests/database/*.mjs"],
   "compilerOptions": {
     "composite": true,
     "strict": true,

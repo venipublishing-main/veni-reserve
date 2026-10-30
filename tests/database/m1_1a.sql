@@ -1,5 +1,5 @@
 -- Run via pnpm test:db: the wrapper provisions a real Auth Admin API fixture.
-begin;
+begin isolation level serializable;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 select no_plan();
@@ -112,5 +112,14 @@ select ok(not has_table_privilege(r, 'public.' || t, 'SELECT,INSERT,UPDATE,DELET
 from unnest(array['anon', 'authenticated']) as r
 cross join unnest(array['tenants', 'users', 'memberships']) as t;
 
+-- Preserve all 67 original assertions above; finish each Tenant coherently
+-- under AR-027 before testing deferred integrity, then roll everything back.
+update public.memberships set status='ACTIVE';
+insert into public.memberships(tenant_id,user_id,status)
+select t.id,'__AUTH_USER_ID__','ACTIVE' from public.tenants t
+where not exists(select 1 from public.memberships m where m.tenant_id=t.id);
+insert into public.membership_roles(membership_id,role_id)
+select id,'10000000-0000-4000-8000-000000000001' from public.memberships;
+set constraints all immediate;
 select * from finish();
 rollback;

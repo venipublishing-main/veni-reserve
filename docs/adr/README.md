@@ -22,3 +22,4 @@ retain the history.
 ## Decisions
 
 - [0001: React Router v8, Vite, and Cloudflare Workers](0001-framework-runtime.md)
+- [0002: Access persistence and transaction integrity](0002-access-foundation.md)
