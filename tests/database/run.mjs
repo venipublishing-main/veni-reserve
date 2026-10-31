@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath, URL } from "node:url";
+import { runConcurrency } from "./m1_1b_concurrency.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const require = createRequire(import.meta.url);
@@ -17,6 +18,7 @@ const run = (...args) => execFileSync(process.execPath, [cli, ...args], {
 });
 
 let fixtureId;
+let secondFixtureId;
 let temp;
 let admin;
 let runningTests = false;
@@ -58,14 +60,27 @@ try {
     throw new Error("Invalid Auth fixture identity.");
   }
   fixtureId = payload.id;
-  const sql = readFileSync(new URL("./m1_1a.sql", import.meta.url), "utf8")
-    .replaceAll("__AUTH_USER_ID__", fixtureId);
+  const second = await (await admin("", "POST", {
+    email: `m11b-${randomUUID()}@example.invalid`, email_confirm: true,
+  })).json();
+  if (!second || typeof second !== "object" || !("id" in second)
+    || typeof second.id !== "string" || !/^[0-9a-f-]{36}$/i.test(second.id)) {
+    throw new Error("Invalid second Auth fixture identity.");
+  }
+  secondFixtureId = second.id;
   temp = mkdtempSync(join(tmpdir(), "veni-m11a-"));
-  const testPath = join(temp, "m1_1a.sql");
-  writeFileSync(testPath, sql);
   runningTests = true;
   phase = "pgTAP";
-  console.log(run("test", "db", "--local", testPath));
+  for (const name of ["m1_1a", "m1_1b"]) {
+    const sql = readFileSync(new URL(`./${name}.sql`, import.meta.url), "utf8")
+      .replaceAll("__AUTH_USER_ID__", fixtureId)
+      .replaceAll("__AUTH_USER_ID_2__", secondFixtureId);
+    const testPath = join(temp, `${name}.sql`);
+    writeFileSync(testPath, sql);
+    console.log(run("test", "db", "--local", testPath));
+  }
+  phase = "two-connection concurrency";
+  await runConcurrency(fixtureId, secondFixtureId);
 } catch (error) {
   // CLI errors can contain connection credentials: never dump the error object/stderr.
   if (runningTests && error instanceof Error && "stdout" in error) console.error(String(error.stdout).replace(/(?:postgres(?:ql)?:\/\/\S+|eyJ[A-Za-z0-9_.-]+|sb_(?:secret|publishable)_\S+)/g, "[REDACTED]"));
@@ -74,6 +89,7 @@ try {
 } finally {
   if (fixtureId && admin) {
     try {
+      if (secondFixtureId) await admin(`/${secondFixtureId}`, "DELETE");
       await admin(`/${fixtureId}`, "DELETE");
       console.log("Auth fixture cleanup: PASS");
     } catch {
