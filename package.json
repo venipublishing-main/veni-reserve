@@ -10,7 +10,8 @@
     "postinstall": "wrangler types",
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
-    "test:db": "node tests/database/run.mjs"
+    "test:db": "node tests/database/run.mjs",
+    "test:security": "node tests/database/security.mjs"
   },
   "dependencies": {
     "isbot": "^5.1.36",

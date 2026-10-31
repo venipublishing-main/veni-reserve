@@ -7,6 +7,7 @@ Docker Desktop's resources/bin directory).
 ```sh
 npx pnpm@12.11.2 exec supabase db reset --local --no-seed
 npx pnpm@12.11.2 test:db
+npx pnpm@12.11.2 test:security
 npx pnpm@12.11.2 exec supabase db advisors --local --fail-on error
 ```
 
@@ -26,7 +27,8 @@ local synthetic-fixture cleanup or an explicitly authorized reset.
 
 ## Coverage and boundary
 
-m1_1a.sql retains all 67 accepted assertions and their meaning. It finishes
+m1_1a.sql retains 67 regression assertions. The obsolete zero-policy/no-SELECT
+expectations are updated to AR-028; persistence checks retain their meaning. It finishes
 temporary tenants with coherent Owners before checking deferred constraints.
 m1_1b.sql independently checks the approved catalogue/matrix, multi-role and
 tenant scope, Owner invariants, invitation structure, audit and default-deny
@@ -39,7 +41,55 @@ deferred trigger must establish the dependency. Separate deletion and suspension
 races each require one COMMIT, one serialization failure and one remaining
 ACTIVE Owner. The harness also tests rejected ordinary isolation, an actual
 ownerless COMMIT, and committed fixture cleanup. It runs inside test:db.
-No new package dependency, application test command or hosted CI job is added.
+No new package dependency or hosted CI job is added. The separate test:security
+command below exercises genuine local Auth/PostgREST behavior.
+
+## M1.2 security evidence (AR-028)
+
+`m1_2.sql` adds 260 structural pgTAP assertions. Together with 67 M1.1A and
+139 M1.1B assertions, test:db executes 466 pgTAP assertions plus the five real
+connection checks. The exact seven-policy inventory, effective table/column
+privileges (including inherited rights), schema privileges, eight helper signatures,
+owners/modes/STABLE/search_path, absence of PUBLIC EXECUTE and internal-trigger
+restrictions are asserted independently. SQL request claims test guard edge cases
+and graph behavior; they are explicitly not evidence of provider authentication.
+
+`test:security` is destructive to the **disposable local veni-reserve database**.
+Do not run alongside other local database users or tests. It accepts no remote
+target, validates the canonical project ID, exact loopback API URL and database
+container project label before reset, and always passes `--local`. It performs
+clean resets before and after the real API fixture run. Committed immutable audit
+and invitation fixtures are removed by reset, never by weakening history triggers.
+
+Anonymous sign-in is enabled only in a copied config inside an OS temporary CLI
+work directory. Accepted migrations are copied there, and the same local project
+is stopped/restarted with that temporary configuration. Canonical config.toml is
+never edited. At completion the CLI restarts from the canonical work directory,
+verifies the unchanged configuration and zero synthetic Auth/business rows, and
+removes the temporary directory. The test uses the existing local service set;
+edge-runtime, imgproxy, logflare, vector and supavisor are excluded. No hosted
+configuration or account is accessed. A forcibly killed process can prevent
+finally cleanup; restore the canonical local stack and perform the guarded reset
+before further work if execution is interrupted. Cleanup failure fails the suite.
+
+Supported Auth Admin creation and password sign-in provide real permanent
+sessions. Supported anonymous signup provides a real anonymous session. Provider
+classification is checked before assertions; a contradiction fails rather than
+loosening the guard. Credentials/passwords remain in memory, and failures print
+bounded assertion names/statuses rather than response bodies, headers or CLI
+credential output. Fixture email addresses use example.invalid; invitation
+verifier bytes are synthetic test data, not usable invitation secrets.
+
+The HTTP matrix covers anon/anonymous, self-only global User reads, no-membership,
+zero-role, inactive self-status, A/B isolation, independent multi-tenant authority,
+SYSTEM/CUSTOM visibility, audit scope, lifecycle, unchanged-token revocation and
+mapping/role changes, redundant grants, filters/order/pagination/count/HEAD,
+singular results, FK embeds/inner joins and recursion. POST/PATCH/DELETE/upsert
+must return privilege errors, with exact ten-table snapshots unchanged. Private
+schema/profile and guessed RPC routes must remain unavailable. Representative
+restricted-role EXPLAIN ANALYZE diagnostics report execution time on small
+synthetic data; they are not a production scale benchmark. No speculative index
+is added.
 
 ## AR-027 persistence decisions
 
@@ -128,13 +178,20 @@ Retention and controlled administrative erasure remain separate future policy.
 
 ### Structural security
 
-All seven relations enable RLS with zero operative policies. PUBLIC, anon and
-authenticated table privileges are absent; private schema usage and internal
-function execution are restricted. Functions use SECURITY INVOKER and a fixed
-empty search_path. Privileged structural tests do not establish operative
-tenant authorization. Actual grants, capability enforcement and identity/provider
-integration tests remain M1.2 or later domain workflow work.
+M1.1 introduced structural default-deny RLS. AR-028 / M1.2 adds exactly seven
+authenticated SELECT policies and no write policy. PUBLIC/anon/service_role have
+no application-table privileges. Authenticated has SELECT only on tenants, users,
+memberships, roles, role_permissions, membership_roles and audit_events. Direct
+permissions/invitation reads remain denied. Public schema usage is retained;
+API roles cannot CREATE there. Private schema usage and exact authorization
+helper execution are authenticated-only. Integrity functions remain invokers;
+the seven read-only authorization graph helpers are private definers. See ADR 0003
+for rationale, lifecycle exceptions and mutation boundaries.
 
 References: Master Product Ledger v1.1; Architecture Reconciliation Register
-v0.1, AR-026 and AR-027; [ADR 0002](../../docs/adr/0002-access-foundation.md).
-M1.1 stays open until independent review and authorized integration.
+v0.1, AR-026, AR-027 and AR-028;
+[ADR 0002](../../docs/adr/0002-access-foundation.md) and
+[ADR 0003](../../docs/adr/0003-database-live-read-authorization.md).
+M1.1 is reviewed, integrated and closed. M1.2 requires independent implementation
+review, publication, merge and post-merge evidence before closure. M1.3 owns
+hosted database/security CI; no CI expansion is included here.

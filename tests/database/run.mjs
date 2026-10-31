@@ -71,7 +71,7 @@ try {
   temp = mkdtempSync(join(tmpdir(), "veni-m11a-"));
   runningTests = true;
   phase = "pgTAP";
-  for (const name of ["m1_1a", "m1_1b"]) {
+  for (const name of ["m1_1a", "m1_1b", "m1_2"]) {
     const sql = readFileSync(new URL(`./${name}.sql`, import.meta.url), "utf8")
       .replaceAll("__AUTH_USER_ID__", fixtureId)
       .replaceAll("__AUTH_USER_ID_2__", secondFixtureId);

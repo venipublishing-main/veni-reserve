@@ -105,10 +105,11 @@ select ok(c.relrowsecurity, c.relname || ' has structural RLS enabled')
 from pg_class c join pg_namespace n on n.oid = c.relnamespace
 where n.nspname = 'public' and c.relname in ('tenants', 'users', 'memberships') order by c.relname;
 select is((select count(*) from pg_policies where schemaname = 'public'
-  and tablename in ('tenants', 'users', 'memberships')), 0::bigint,
-  'No operative or permissive placeholder policies exist');
-select ok(not has_table_privilege(r, 'public.' || t, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'),
-  r || ' has no broad table privileges on ' || t)
+  and tablename in ('tenants', 'users', 'memberships')), 3::bigint,
+  'AR-028 adds exactly three foundation read policies (full inventory tested in M1.2)');
+select ok(not has_table_privilege(r, 'public.' || t, 'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+  and has_table_privilege(r, 'public.' || t, 'SELECT') = (r = 'authenticated'),
+  r || ' has exact AR-028 read-only privileges on ' || t)
 from unnest(array['anon', 'authenticated']) as r
 cross join unnest(array['tenants', 'users', 'memberships']) as t;
 
