@@ -26,3 +26,52 @@ jobs:
       - run: pnpm lint
       - run: pnpm test
       - run: pnpm build
+
+  database-security:
+    name: database-security
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    concurrency:
+      group: ci-database-security-${{ github.event_name }}-${{ github.event.pull_request.number || github.sha }}
+      cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+    env:
+      WRANGLER_SEND_METRICS: "false"
+      SUPABASE_EXPERIMENTAL_STACK: "0"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        timeout-minutes: 5
+      - name: Verify pinned tools and local Docker boundary
+        run: |
+          test "$(pnpm --version)" = "12.11.2"
+          node tests/database/ci.mjs check
+        timeout-minutes: 2
+      - name: Start bounded local Supabase
+        run: node tests/database/ci.mjs start
+        timeout-minutes: 11
+      - name: Reconstruct migrations from scratch
+        run: node tests/database/ci.mjs reset
+        timeout-minutes: 4
+      - name: Database and real-connection integrity tests
+        run: pnpm test:db
+        timeout-minutes: 5
+      - name: Genuine Auth and PostgREST security tests
+        run: pnpm test:security
+        timeout-minutes: 10
+      - name: Verify canonical restoration and fixture hygiene
+        run: node tests/database/ci.mjs hygiene
+        timeout-minutes: 2
+      - name: Local database advisors
+        run: node tests/database/ci.mjs advisors
+        timeout-minutes: 3
+      - name: Stop and remove only this local project
+        if: ${{ always() }}
+        run: node tests/database/ci.mjs stop
+        timeout-minutes: 2

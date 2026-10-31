@@ -23,3 +23,5 @@ retain the history.
 
 - [0001: React Router v8, Vite, and Cloudflare Workers](0001-framework-runtime.md)
 - [0002: Access persistence and transaction integrity](0002-access-foundation.md)
+- [0003: Database live-read authorization](0003-database-live-read-authorization.md)
+- [0004: Database / security CI gate](0004-database-security-ci.md)
