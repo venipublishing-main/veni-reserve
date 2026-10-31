@@ -256,12 +256,14 @@ select ok(c.relrowsecurity,n.nspname||'.'||c.relname||' has RLS')
  from pg_class c join pg_namespace n on n.oid=c.relnamespace
  where (n.nspname='public' and c.relname in ('permissions','roles','role_permissions','membership_roles','audit_events'))
  or (n.nspname='private' and c.relname in ('invitations','invitation_roles'));
-select is((select count(*) from pg_policies where schemaname in ('public','private')),0::bigint,'Zero operative policies');
-select ok(not has_table_privilege(r,t,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'),r||' denied '||t)
+select is((select count(*) from pg_policies where schemaname in ('public','private')),7::bigint,'AR-028 seven SELECT policies');
+select ok(not has_table_privilege(r,t,'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+ and has_table_privilege(r,t,'SELECT') = (r='authenticated' and t in
+ ('public.roles','public.role_permissions','public.membership_roles','public.audit_events')),r||' AR-028 privileges '||t)
  from unnest(array['anon','authenticated']) r cross join unnest(array[
  'public.permissions','public.roles','public.role_permissions','public.membership_roles',
  'private.invitations','private.invitation_roles','public.audit_events']) t;
-select ok(not has_schema_privilege(r,'private','USAGE'),r||' denied private schema') from unnest(array['anon','authenticated']) r;
+select is(has_schema_privilege(r,'private','USAGE'),r='authenticated',r||' exact private schema usage') from unnest(array['anon','authenticated']) r;
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace,
  lateral aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a
  where n.nspname='private' and a.grantee=0 and a.privilege_type='EXECUTE'),0::bigint,'No PUBLIC function EXECUTE');

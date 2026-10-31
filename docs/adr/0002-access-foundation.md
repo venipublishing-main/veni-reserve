@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted through AR-027; implementation pending independent review.
+Accepted through AR-027; independently reviewed and merged. M1.1 is PASS / CLOSED
+on main commit 464c832ac7a29cebf84d18e88fada1aa3262bee4. The historical structural
+default-deny boundary below is extended by AR-028 / ADR 0003 for M1.2 reads.
 
 ## Context
 
