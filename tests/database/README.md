@@ -41,7 +41,7 @@ deferred trigger must establish the dependency. Separate deletion and suspension
 races each require one COMMIT, one serialization failure and one remaining
 ACTIVE Owner. The harness also tests rejected ordinary isolation, an actual
 ownerless COMMIT, and committed fixture cleanup. It runs inside test:db.
-No new package dependency or hosted CI job is added. The separate test:security
+No new package dependency is required. The separate test:security
 command below exercises genuine local Auth/PostgREST behavior.
 
 ## M1.2 security evidence (AR-028)
@@ -192,6 +192,37 @@ References: Master Product Ledger v1.1; Architecture Reconciliation Register
 v0.1, AR-026, AR-027 and AR-028;
 [ADR 0002](../../docs/adr/0002-access-foundation.md) and
 [ADR 0003](../../docs/adr/0003-database-live-read-authorization.md).
-M1.1 is reviewed, integrated and closed. M1.2 requires independent implementation
-review, publication, merge and post-merge evidence before closure. M1.3 owns
-hosted database/security CI; no CI expansion is included here.
+M1.1 and M1.2 are reviewed, integrated and closed. M1.3 adds the hosted gate
+described below; publication and hosted evidence remain separate gates.
+
+## M1.3 CI lifecycle (AR-029)
+
+The parallel `CI / database-security` job uses Ubuntu 24.04, Node 24, the frozen
+project pnpm/CLI versions, and a 30-minute budget. PR and main triggers have no
+path filters. No hosted project, credentials, deployment, artifacts or Docker
+image cache are used. See [ADR 0004](../../docs/adr/0004-database-security-ci.md).
+
+`node tests/database/ci.mjs` accepts exactly one fixed phase: `check`, `start`,
+`reset`, `hygiene`, `advisors`, or `stop`. Set `SUPABASE_EXPERIMENTAL_STACK=0`.
+The helper requires clean canonical config relative to HEAD, no hosted link or
+unreviewed .env file, and local Docker (default Unix socket on Linux, or the
+known Docker Desktop Linux pipe/context on Windows). Docker must be on PATH.
+It rejects supplied remote connection/credential and runtime override variables.
+
+The workflow invokes check/start/reset, then existing `pnpm test:db` and
+`pnpm test:security`, then hygiene/advisors. Final `stop` is a separate always()
+step: no continue-on-error and no success-forcing suffix. Startup records a
+non-secret attempt marker in ignored .tmp; stop removes only this project and
+verifies containers, labelled volumes and networks are gone. It is destructive
+to disposable local data. Do not run alongside other users of this local stack.
+
+Lifecycle output never streams raw credentials. Advisors expose only validated
+severity and finding identifiers. No runtime/status/log files are uploaded.
+The suites retain their existing safe assertion output; review actual totals
+466 + five + 345. Exit codes gate tests; no_plan pgTAP and the API counter do not
+by themselves prevent deliberate removal of an assertion. Performance timings
+are diagnostic, not production benchmarks or new latency thresholds.
+
+Local checks cannot prove GitHub-hosted Linux compatibility. Closure requires
+reviewed publication, the first cold hosted run, hosted failure/cleanup evidence,
+passing PR and merged-main runs, and final branch cleanup. No M1.4 work is implied.
