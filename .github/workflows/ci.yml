@@ -56,6 +56,11 @@ jobs:
       - name: Start bounded local Supabase
         run: node tests/database/ci.mjs start
         timeout-minutes: 11
+      - name: Controlled M1.3 failure drill
+        run: |
+          echo "CONTROLLED FAILURE DRILL: intentional exit 7 after successful local Supabase startup."
+          exit 7
+        timeout-minutes: 1
       - name: Reconstruct migrations from scratch
         run: node tests/database/ci.mjs reset
         timeout-minutes: 4
