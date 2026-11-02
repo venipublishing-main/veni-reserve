@@ -13,7 +13,9 @@
       "workers_dev": true,
       "vars": {
         "VENI_PRODUCT": "reserve",
-        "VENI_ENV": "stg"
+        "VENI_ENV": "stg",
+        "SUPABASE_URL": "https://opjgaepryqwmsohtajja.supabase.co",
+        "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_FTF4-pbZA0KhQY4DubTlXA_ELC_zC0K"
       }
     }
   }
