@@ -49,10 +49,19 @@ Current development model:
 - PROD: not yet created
 
 M0.1 uses React Router v8 and the Cloudflare Vite plugin for local Workers SSR.
-M0.2 authorises one non-production Cloudflare Worker, `vf-reserve-stg`, addressed
-through `workers.dev`. Its explicit `stg` environment is selected at Vite build
-time and contains only `VENI_PRODUCT=reserve` and `VENI_ENV=stg`. No production
-Worker, custom domain, DNS configuration, or Supabase connection is configured.
+M0.2 established one non-production Cloudflare Worker, `vf-reserve-stg`, addressed
+through `workers.dev`, with only `VENI_PRODUCT=reserve` and `VENI_ENV=stg` and no
+Supabase connection at that milestone.
+
+M1.4 adds staging Supabase connectivity in source and local Workers preview;
+hosted Cloudflare deployment requires a separate review and authorization.
+The explicit `stg` environment is selected at Vite build time. Its four public
+vars are `VENI_PRODUCT`, `VENI_ENV`, `SUPABASE_URL` and
+`SUPABASE_PUBLISHABLE_KEY`. The URL targets `opjgaepryqwmsohtajja.supabase.co`.
+No elevated Supabase key is configured. DEV remains local-first without hosted
+Supabase bindings. `/health` remains process liveness; `/ready` checks Supabase
+Auth health with a bounded server-side request. No production resources, custom
+domain or DNS configuration are provisioned.
 See the [staging deployment procedure](engineering/README.md#m0-staging-deployment) and
 [engineering environment conventions](engineering/README.md#environment-conventions).
 
