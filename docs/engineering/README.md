@@ -57,7 +57,7 @@ Integration references:
 | Environment | Identifier | Current target |
 | --- | --- | --- |
 | DEV | `dev` | Local-first application and local Workers runtime |
-| STG | `stg` | Worker `vf-reserve-stg`; M1.4 source/local preview connects to Supabase `vf-reserve-stg`; hosted wiring deployment awaits separate authorization |
+| STG | `stg` | Worker `vf-reserve-stg`; M1.4 hosted Worker connects to Supabase `vf-reserve-stg`; public liveness and readiness passed under AR-030 |
 | PROD | `prod` | Not provisioned |
 
 Resource names follow `vf-<product>-<environment>`. The local Wrangler definition
@@ -168,7 +168,7 @@ arbitrary CSS and Theme Studio are outside M0.1.
 
 ## Validation and future work
 
-### M1.4 readiness wiring (source and local proof)
+### M1.4 readiness wiring (local reproduction of the hosted proof)
 
 `/health` is unchanged Worker/process liveness and performs no external request.
 `/ready` calls the server-only `app/lib/supabase-readiness.server.ts` adapter,
@@ -187,7 +187,7 @@ Require `vf-reserve-stg`, the four public vars described above, and only normal
 scaffold asset bindings. No `SUPABASE_SECRET_KEY` is configured. Local `/ready`
 may reach the real staging health endpoint and should return 200/stg with
 `dependencies.supabase=ok`. Stop preview and clear `CLOUDFLARE_ENV` afterward.
-No Cloudflare deployment or Supabase mutation is part of this implementation gate.
+The M1.4 hosted proof is complete. Each future deployment requires separate authorization.
 No production resources exist. Future callback/Auth/data work requires separate scope.
 
 Provider references:

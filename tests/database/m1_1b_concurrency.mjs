@@ -12,7 +12,7 @@ function query(sql) {
   return execFileSync("docker", args, { input: sql, encoding: "utf8", timeout: 30_000,
     stdio: ["pipe", "pipe", "pipe"] });
 }
-function connection() {
+export function connection() {
   const child = spawn("docker", args, { stdio: ["pipe", "pipe", "pipe"] });
   let output = "";
   /** @type {{marker: string, resolve: (value: {output: string, state: string}) => void, reject: (error: Error) => void, timer: ReturnType<typeof setTimeout>} | undefined} */

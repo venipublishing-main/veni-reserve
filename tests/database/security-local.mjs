@@ -46,7 +46,7 @@ function guard(cwd) {
 }
 
 /** @typedef {{id: string, token: string}} Identity */
-/** @typedef {{api: (path: string, token?: string, method?: string, body?: object, headers?: Record<string,string>) => Promise<Response>, identity: (anonymous?: boolean) => Promise<Identity>}} Context */
+/** @typedef {{publishableKey:string, api: (path: string, token?: string, method?: string, body?: object, headers?: Record<string,string>) => Promise<Response>, identity: (anonymous?: boolean) => Promise<Identity>}} Context */
 /** @param {(context: Context) => Promise<void>} suite */
 export async function withLocalSecurity(suite) {
   let temporary;
@@ -104,7 +104,7 @@ export async function withLocalSecurity(suite) {
     await identity(true);
     console.log("Genuine permanent/anonymous Auth token classification: PASS");
     phase = "real Auth/PostgREST security assertions";
-    await suite({ api, identity });
+    await suite({ api, identity, publishableKey: state.PUBLISHABLE_KEY });
   } catch (error) {
     // Never print CLI/API objects or response bodies containing session credentials.
     console.error(`Security suite failed during ${phase}.`);
@@ -118,7 +118,7 @@ export async function withLocalSecurity(suite) {
         run(temporary, ["stop"]);
         run(root, ["start", "-x", excluded]);
         guard(root);
-        const counts = sql("select (select count(*) from auth.users) + (select count(*) from public.users) + (select count(*) from public.tenants) + (select count(*) from public.memberships) + (select count(*) from public.membership_roles) + (select count(*) from public.audit_events) + (select count(*) from private.invitations) + (select count(*) from private.invitation_roles) + (select count(*) from public.roles where kind = 'CUSTOM');");
+        const counts = sql("select (select count(*) from auth.users) + (select count(*) from public.users) + (select count(*) from public.tenants) + (select count(*) from public.memberships) + (select count(*) from public.membership_roles) + (select count(*) from public.audit_events) + (select count(*) from private.invitations) + (select count(*) from private.invitation_roles) + (select count(*) from private.tenant_business_settings) + (select count(*) from private.tenant_business_settings_changes) + (select count(*) from public.roles where kind = 'CUSTOM');");
         if (counts !== "0" || readFileSync(join(root, "supabase/config.toml"), "utf8") !== original) {
           console.error("Fixture/config cleanup FAILED");
           process.exitCode = 1;

@@ -1,3 +1,4 @@
+import { settingsProof } from "./m2_1_security.ts";
 import console from "node:console";
 import { randomUUID } from "node:crypto";
 import { object, sql, withLocalSecurity } from "./security-local.mjs";
@@ -12,7 +13,8 @@ function check(condition, label) {
 /** @param {string} statement */
 const mutate = (statement) => sql(`begin isolation level serializable; ${statement}; commit;`);
 
-await withLocalSecurity(async ({ api, identity }) => {
+await withLocalSecurity(async context => {
+  const {api,identity}=context;
   const a = await identity(), b = await identity(), c = await identity();
   const zero = await identity(), suspended = await identity(), revoked = await identity();
   const none = await identity(), anonymous = await identity(true), spare = await identity();
@@ -218,4 +220,5 @@ await withLocalSecurity(async ({ api, identity }) => {
     console.log(`Restricted-role plan ${table}: execution ${timing} ms (small synthetic fixture; no scale claim)`);
   }
   console.log(`Real Auth/PostgREST security assertions: ${assertions} PASS`);
+  await settingsProof(context);
 });
