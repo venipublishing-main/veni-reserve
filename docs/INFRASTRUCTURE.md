@@ -53,8 +53,8 @@ M0.2 established one non-production Cloudflare Worker, `vf-reserve-stg`, address
 through `workers.dev`, with only `VENI_PRODUCT=reserve` and `VENI_ENV=stg` and no
 Supabase connection at that milestone.
 
-M1.4 adds staging Supabase connectivity in source and local Workers preview;
-hosted Cloudflare deployment requires a separate review and authorization.
+M1.4 deployed the reviewed staging Worker. Hosted `/health` and `/ready` passed
+under AR-030. Future deployments require separate review and authorization.
 The explicit `stg` environment is selected at Vite build time. Its four public
 vars are `VENI_PRODUCT`, `VENI_ENV`, `SUPABASE_URL` and
 `SUPABASE_PUBLISHABLE_KEY`. The URL targets `opjgaepryqwmsohtajja.supabase.co`.
