@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   addDays,
+  DEMO_PRACTITIONERS,
+  DEMO_RULES,
   DEMO_SERVICES,
   demoAvailableSlots,
   minutesLabel,
@@ -45,6 +47,74 @@ describe("synthetic booking availability (never authoritative)", () => {
     expect(p1).not.toContain(9 * 60 + 30);
     expect(p1).toContain(10 * 60);
     expect(p1).not.toContain(14 * 60);
+  });
+
+  it("protects an existing contact consultation's buffer and offers the next valid slot", () => {
+    // Practitioner B's consultation ends at 11:00, with a buffer until 11:15.
+    const starts = available("2026-11-10", "p2").map((slot) => slot.startMinute);
+    expect(starts).not.toContain(11 * 60);
+    expect(starts).toContain(11 * 60 + 30);
+  });
+
+  it("uses the existing appointment's own buffer and permits its exact end boundary", () => {
+    const appointment = { ...syntheticAppointments("2026-11-10")[1], bufferAfterMinutes: 45 };
+    const starts = demoAvailableSlots({
+      date: appointment.date,
+      service: { ...exam, bufferAfterMinutes: 0 },
+      staffId: "p2",
+      now,
+      appointments: [appointment],
+      rules: { ...DEMO_RULES, slotIntervalMinutes: 15 },
+    }).map((slot) => slot.startMinute);
+    expect(starts).toContain(9 * 60 + 45); // Ends exactly when the appointment starts.
+    expect(starts).not.toContain(10 * 60);
+    expect(starts).not.toContain(11 * 60);
+    expect(starts).not.toContain(11 * 60 + 30);
+    expect(starts).toContain(11 * 60 + 45);
+  });
+
+  it.each(DEMO_SERVICES)("never overlaps occupied or buffered intervals for $id", (service) => {
+    for (const date of ["2026-11-10", "2026-11-14"]) {
+      const appointments = syntheticAppointments(date);
+      for (const staffId of ["any", ...DEMO_PRACTITIONERS.map((person) => person.id)]) {
+        const slots = demoAvailableSlots({ date, service, staffId, now });
+        if (staffId === "any" || service.eligibleStaffIds.includes(staffId)) {
+          expect(slots.length).toBeGreaterThan(0);
+        } else {
+          expect(slots).toEqual([]);
+        }
+        for (const slot of slots) {
+          expect(service.eligibleStaffIds).toContain(slot.staffId);
+          if (staffId !== "any") expect(slot.staffId).toBe(staffId);
+          for (const appointment of appointments.filter((entry) => entry.staffId === slot.staffId)) {
+            const endsBefore = slot.startMinute + service.durationMinutes + service.bufferAfterMinutes <= appointment.startMinute;
+            const startsAfter = slot.startMinute >= appointment.startMinute + appointment.durationMinutes + appointment.bufferAfterMinutes;
+            expect(endsBefore || startsAfter).toBe(true);
+          }
+        }
+      }
+    }
+  });
+
+  it("uses another eligible practitioner during a buffer, but none when all eligible staff are busy", () => {
+    const appointment = syntheticAppointments("2026-11-10")[1];
+    const input = { date: appointment.date, service: DEMO_SERVICES[2], staffId: "any", now };
+    expect(demoAvailableSlots({ ...input, appointments: [appointment] }).find((slot) => slot.startMinute === 11 * 60)?.staffId).toBe("p3");
+    const appointments = [appointment, { ...appointment, id: "synthetic-p3", staffId: "p3" }];
+    expect(demoAvailableSlots({ ...input, appointments }).some((slot) => slot.startMinute === 11 * 60)).toBe(false);
+    expect(demoAvailableSlots({ ...input, people: [DEMO_PRACTITIONERS[0]] })).toEqual([]);
+  });
+
+  it("does not let a different date or practitioner block a free slot", () => {
+    const appointment = syntheticAppointments("2026-11-10")[1];
+    const slots = demoAvailableSlots({
+      date: appointment.date, service: exam, staffId: "p2", now,
+      appointments: [
+        { ...appointment, date: "2026-11-11" },
+        { ...appointment, id: "synthetic-p1", staffId: "p1" },
+      ],
+    });
+    expect(slots.some((slot) => slot.startMinute === 11 * 60)).toBe(true);
   });
 
   it("offers no-preference slots only when an eligible person is available", () => {

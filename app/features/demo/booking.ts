@@ -24,6 +24,7 @@ export type DemoAppointment = {
   date: string;
   startMinute: number;
   durationMinutes: number;
+  bufferAfterMinutes: number;
   staffId: string;
   serviceId: string;
   customerLabel: string;
@@ -143,14 +144,14 @@ export function syntheticAppointments(date: string): DemoAppointment[] {
   const weekday = new Date(Date.UTC(parts[0], parts[1] - 1, parts[2], 12)).getUTCDay();
   if (weekday === 0) return [];
   return [
-    { id: `${date}-a`, date, startMinute: 9 * 60, durationMinutes: 45,
+    { id: `${date}-a`, date, startMinute: 9 * 60, durationMinutes: 45, bufferAfterMinutes: 15,
       staffId: "p1", serviceId: "examination", customerLabel: "Sample client 01", status: "scheduled" },
-    { id: `${date}-b`, date, startMinute: 10 * 60 + 30, durationMinutes: 30,
+    { id: `${date}-b`, date, startMinute: 10 * 60 + 30, durationMinutes: 30, bufferAfterMinutes: 15,
       staffId: "p2", serviceId: "contacts", customerLabel: "Sample client 02", status: "checked_in" },
-    { id: `${date}-c`, date, startMinute: 11 * 60 + 30, durationMinutes: 45,
+    { id: `${date}-c`, date, startMinute: 11 * 60 + 30, durationMinutes: 45, bufferAfterMinutes: 15,
       staffId: "p3", serviceId: "children", customerLabel: "Sample client 03", status: "scheduled" },
     ...(weekday === 6 ? [] : [
-      { id: `${date}-d`, date, startMinute: 14 * 60, durationMinutes: 45,
+      { id: `${date}-d`, date, startMinute: 14 * 60, durationMinutes: 45, bufferAfterMinutes: 15,
         staffId: "p1", serviceId: "examination", customerLabel: "Sample client 04",
         status: "scheduled" as const },
     ]),
@@ -191,7 +192,7 @@ export function demoAvailableSlots(input: {
         now.getTime() + rules.minimumNoticeMinutes * 60_000) continue;
     const assigned = practitioners.find((person) => !existing.some((appointment) => {
       if (appointment.staffId !== person.id || appointment.date !== date) return false;
-      return minute < appointment.startMinute + appointment.durationMinutes &&
+      return minute < appointment.startMinute + appointment.durationMinutes + appointment.bufferAfterMinutes &&
         minute + service.durationMinutes + service.bufferAfterMinutes > appointment.startMinute;
     }));
     if (assigned) slots.push({ startMinute: minute, staffId: assigned.id });
