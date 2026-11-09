@@ -68,7 +68,7 @@ export const DEMO_SERVICES: readonly DemoService[] = [
     description: "A fitting or follow-up conversation about contact lenses.",
     durationMinutes: 30,
     bufferAfterMinutes: 15,
-    eligibleStaffIds: ["p1", "p3"],
+    eligibleStaffIds: ["p1", "p2", "p3"],
   },
   {
     id: "children",
