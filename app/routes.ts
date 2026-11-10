@@ -8,4 +8,5 @@ export default [
   // Explicitly demo-only surfaces: no real bookings or tenant administration.
   route("demo/vvb", "routes/demo-booking.tsx"),
   route("demo/vvb/workspace", "routes/demo-workspace.tsx"),
+  route("playground", "routes/playground.tsx"),
 ] satisfies RouteConfig;

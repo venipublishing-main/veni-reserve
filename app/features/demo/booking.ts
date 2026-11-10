@@ -1,3 +1,5 @@
+import { availableSlots } from "../booking/availability";
+
 /**
  * Entirely synthetic public booking fixture and deterministic demo availability.
  *
@@ -12,6 +14,7 @@ export type DemoService = {
   durationMinutes: number;
   bufferAfterMinutes: number;
   eligibleStaffIds: readonly string[];
+  price?: string;
 };
 export type DemoPractitioner = {
   id: string;
@@ -182,20 +185,15 @@ export function demoAvailableSlots(input: {
   );
   if (practitioners.length === 0) return [];
   const existing = input.appointments ?? syntheticAppointments(date);
-  const slots: DemoSlot[] = [];
-  for (
-    let minute = window.opens;
-    minute + service.durationMinutes + service.bufferAfterMinutes <= window.closes;
-    minute += rules.slotIntervalMinutes
-  ) {
-    if (localMinutesAsUtc(date, minute, rules.utcOffsetMinutes) <
-        now.getTime() + rules.minimumNoticeMinutes * 60_000) continue;
-    const assigned = practitioners.find((person) => !existing.some((appointment) => {
-      if (appointment.staffId !== person.id || appointment.date !== date) return false;
-      return minute < appointment.startMinute + appointment.durationMinutes + appointment.bufferAfterMinutes &&
-        minute + service.durationMinutes + service.bufferAfterMinutes > appointment.startMinute;
-    }));
-    if (assigned) slots.push({ startMinute: minute, staffId: assigned.id });
-  }
-  return slots;
+  return availableSlots({
+    service, staffId, staffIds: practitioners.map(person => person.id),
+    opens: window.opens, closes: window.closes, interval: rules.slotIntervalMinutes,
+    earliest: now.getTime() + rules.minimumNoticeMinutes * 60_000,
+    instant: minute => localMinutesAsUtc(date, minute, rules.utcOffsetMinutes),
+    occupied: existing.map(appointment => ({
+      staffId: appointment.staffId,
+      start: localMinutesAsUtc(appointment.date, appointment.startMinute, rules.utcOffsetMinutes),
+      end: localMinutesAsUtc(appointment.date, appointment.startMinute + appointment.durationMinutes + appointment.bufferAfterMinutes, rules.utcOffsetMinutes),
+    })),
+  });
 }
