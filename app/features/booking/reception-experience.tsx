@@ -15,9 +15,9 @@ import {
 export type ReceptionAppointment = DemoAppointment & { serviceName?: string; staffName?: string };
 export function ReceptionExperience({ today, business = DEMO_BUSINESS,
   people = DEMO_PRACTITIONERS, services = DEMO_SERVICES, appointmentsFor = syntheticAppointments,
-  onCancel, onBooking, initialDate, selectedDate, onDateChange,
+  onCancel, onBooking, initialDate, selectedDate, onDateChange, bookingActionLabel = "Booking preview", embedded = false,
 }: {
-  today: string;
+  today: string; bookingActionLabel?: string; embedded?: boolean;
   initialDate?: string; selectedDate?: string; onDateChange?: (date: string) => void;
   business?: { name: string; descriptor: string; primary?: string; accent?: string };
   people?: readonly DemoPractitioner[]; services?: readonly DemoService[];
@@ -40,12 +40,12 @@ export function ReceptionExperience({ today, business = DEMO_BUSINESS,
   const serviceNames = Object.fromEntries(services.map((service) => [service.id, service.name]));
 
   return (
-    <main style={bookingTheme(business.primary, business.accent)} className="min-h-screen bg-[#f5f7f4] text-[#23372c]">
+    <main style={bookingTheme(business.primary, business.accent)} className={`${embedded ? "" : "min-h-screen"} bg-[#f5f7f4] text-[#23372c]`}>
       <div className="bg-[#fff4d9] px-5 py-2.5 text-center text-xs font-semibold text-[#765121]">
         {onCancel ? "PLAYGROUND RECEPTION · Synthetic appointments in this tab only" : "SYNTHETIC RECEPTION PREVIEW · No authentication, real customers, database reads or appointment changes"}
       </div>
-      <div className="mx-auto flex max-w-7xl flex-col lg:min-h-[calc(100vh-36px)] lg:flex-row">
-        <aside className="border-b border-[#e1e9df] bg-white px-6 py-6 lg:w-64 lg:shrink-0 lg:border-b-0 lg:border-r">
+      <div className={`mx-auto flex max-w-7xl flex-col lg:flex-row ${embedded ? "" : "lg:min-h-[calc(100vh-36px)]"}`}>
+        {!embedded && <aside className="border-b border-[#e1e9df] bg-white px-6 py-6 lg:w-64 lg:shrink-0 lg:border-b-0 lg:border-r">
           <Link to="/" className="flex items-center gap-3">
             <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--booking-primary)] text-xl font-bold text-[var(--booking-on-primary)]">V</span>
             <span><span className="block text-lg font-bold tracking-tight">Veni Reserve</span><span className="text-xs text-[#8e9e91]">Business workspace</span></span>
@@ -62,12 +62,12 @@ export function ReceptionExperience({ today, business = DEMO_BUSINESS,
             <span className="rounded-xl px-4 py-3 text-sm text-[#8c9c8d]">✧ &nbsp; Customisation · Coming later</span>
           </nav>
           <div className="mt-8 lg:mt-16">
-            {onBooking ? <button type="button" onClick={onBooking} className="rounded-full border px-4 py-2.5 text-sm font-semibold">Booking preview</button> : <Link to="/demo/vvb" className="inline-block rounded-full border border-[#ccdacc] px-4 py-2.5 text-sm font-semibold text-[#315543] hover:bg-[#f0f6ef]">
+            {onBooking ? <button type="button" onClick={onBooking} className="rounded-full border px-4 py-2.5 text-sm font-semibold">{bookingActionLabel}</button> : <Link to="/demo/vvb" className="inline-block rounded-full border border-[#ccdacc] px-4 py-2.5 text-sm font-semibold text-[#315543] hover:bg-[#f0f6ef]">
               ← Public booking preview
             </Link>}
           </div>
-        </aside>
-        <div className="min-w-0 flex-1 px-5 py-9 sm:px-9 lg:py-12">
+        </aside>}
+        <div className={embedded ? "min-w-0 flex-1 p-4" : "min-w-0 flex-1 px-5 py-9 sm:px-9 lg:py-12"}>
           <div className="flex flex-wrap items-end justify-between gap-5">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#829a84]">Reception workspace · Demo</p>

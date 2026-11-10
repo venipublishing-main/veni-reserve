@@ -19,3 +19,24 @@ html,
 body {
   @apply bg-background text-foreground font-sans;
 }
+
+/* The reception overview uses the remaining viewport, not minutes as pixels.
+   Agenda and contextual dialogs scroll independently; the Day timeline does not. */
+.playground-reception { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+.reception-shell > nav, .reception-simulator, .reception-workspace > :not(.reception-board) { flex-shrink: 0; }
+.reception-simulator > details { padding: 0.4rem 0.75rem; }
+.reception-simulator > details[open] { max-height: 30dvh; overflow: auto; }
+.reception-dialog { position: fixed; margin: 0; width: min(460px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); overflow: auto; }
+.reception-dialog::backdrop { background: rgb(15 23 42 / 0.35); }
+.reception-drag-handle { cursor: move; touch-action: none; }
+.reception-preview { max-width: calc(100vw - 24px); }
+@media (max-width: 767px) {
+  .playground-reception > header { padding: 0.35rem 0.75rem; }
+  .playground-reception > header h1 { font-size: 1rem; margin-top: 0; }
+  .playground-reception > header button { padding: 0.35rem 0.6rem; font-size: 0.75rem; }
+  .reception-shell > nav button { padding: 0.4rem 0.6rem; font-size: 0.75rem; }
+  .reception-board { grid-template-columns: 48px minmax(0, 1fr) !important; }
+  .board-person[data-selected="false"] { display: none; }
+  .reception-dialog { top: auto !important; left: 12px !important; bottom: 12px; width: calc(100vw - 24px); }
+  .reception-drag-handle { cursor: auto; touch-action: auto; }
+}

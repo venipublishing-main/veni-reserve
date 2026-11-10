@@ -68,6 +68,7 @@ export default function Playground() {
   useEffect(() => () => session.dispose(), [session]);
   const c = state.config;
   const active = state.phase === "active";
+  const reception = active && state.view === "reception";
   const errors = configurationErrors(c);
   const step = active ? editorStep : state.step;
   const colour = /^#[0-9a-f]{6}$/i.test(c.theme.primary) ? c.theme.primary : "#244b42";
@@ -78,16 +79,16 @@ export default function Playground() {
     session.setLogo(url, epoch);
   };
   const today = validTimezone(c.business.timezone) ? todayInTimeZone(new Date(), c.business.timezone) : "";
-  return <div style={bookingTheme(c.theme.primary, c.theme.accent)} className="min-h-screen bg-[#f1f5f2] text-slate-900">
-    <header className="border-b border-slate-200 bg-white px-5 py-5 sm:px-8">
+  return <div style={bookingTheme(c.theme.primary, c.theme.accent)} className={`${reception ? "playground-reception" : "min-h-screen"} bg-[#f1f5f2] text-slate-900`}>
+    <header className={`border-b border-slate-200 bg-white px-5 sm:px-8 ${reception ? "py-2" : "py-5"}`}>
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4">
         <div><p className="text-xs font-bold uppercase tracking-[0.22em] text-teal-800">Veni Reserve · Playground</p><h1 className="mt-1 text-2xl font-semibold">{active ? c.business.name : "Build your own booking business"}</h1></div>
         <div className="flex flex-wrap gap-2">{active && <button className={button} onClick={() => { if (session.touch()) setConfirmation("soft"); }}>Restore tutorial baseline</button>}<button className={button} onClick={() => { if (session.touch()) setConfirmation("hard"); }}>Start over / abandon</button></div>
       </div>
-      <p className="mx-auto mt-3 max-w-7xl text-sm text-slate-600">Temporary, browser-memory only. Refreshing, closing or leaving loses this session. Use fictional details. Expires after {Math.round(session.policy.inactivityMs / 60_000)} minutes of inactivity; this proposed policy is configurable. Clearing is not forensic device deletion.</p>
+      <p className={reception ? "sr-only" : "mx-auto mt-3 max-w-7xl text-sm text-slate-600"}>Temporary, browser-memory only. Refreshing, closing or leaving loses this session. Use fictional details. Expires after {Math.round(session.policy.inactivityMs / 60_000)} minutes of inactivity; this proposed policy is configurable. Clearing is not forensic device deletion.</p>
     </header>
-    <div className="mx-auto max-w-7xl px-5 py-6 sm:px-8">
-      {state.notice && <p role="status" className="mb-4 rounded-xl bg-teal-50 p-4 text-sm text-teal-950">{state.notice}</p>}
+    <div className={reception ? "reception-shell mx-auto flex w-full max-w-7xl min-h-0 flex-1 flex-col px-3 py-2" : "mx-auto max-w-7xl px-5 py-6 sm:px-8"}>
+      {state.notice && <p role="status" className={reception ? "sr-only" : "mb-4 rounded-xl bg-teal-50 p-4 text-sm text-teal-950"}>{state.notice}</p>}
       {remaining <= session.policy.warningMs && <div role="alert" className="mb-4 rounded-xl bg-amber-100 p-4">This session expires in about {Math.ceil(remaining / 60_000)} minutes. <button className={button} onClick={() => session.touch()}>Keep exploring</button></div>}
       {confirmation && <section role="alertdialog" aria-labelledby="reset-title" aria-describedby="reset-description" className="mb-6 rounded-2xl border-2 border-amber-400 bg-white p-6">
         <h2 id="reset-title" className="text-xl font-semibold">{confirmation === "soft" ? "Restore your original setup?" : "Destroy this temporary session?"}</h2>
@@ -98,7 +99,7 @@ export default function Playground() {
           setConfirmation(null); setEditorStep(0); setError("");
         }}>Confirm {confirmation === "soft" ? "restore" : "start over"}</button></div>
       </section>}
-      {active && <nav className="mb-5 flex flex-wrap gap-2" aria-label="Playground views">{(["booking", "reception", "configure"] as const).map(view => <button key={view} className={`${button} ${state.view === view ? "bg-[var(--booking-accent)] text-[var(--booking-on-accent)] ring-2 ring-slate-700" : ""}`} style={state.view === view ? { backgroundColor: "var(--booking-accent)", color: "var(--booking-on-accent)" } : undefined} aria-pressed={state.view === view} onClick={() => session.view(view)}>{view === "configure" ? "Edit business & branding" : view === "booking" ? "Customer booking" : "Reception"}</button>)}</nav>}
+      {active && <nav className={`${reception ? "mb-2" : "mb-5"} flex flex-wrap gap-2`} aria-label="Playground views">{(["booking", "reception", "configure"] as const).map(view => <button key={view} className={`${button} ${state.view === view ? "bg-[var(--booking-accent)] text-[var(--booking-on-accent)] ring-2 ring-slate-700" : ""}`} style={state.view === view ? { backgroundColor: "var(--booking-accent)", color: "var(--booking-on-accent)" } : undefined} aria-pressed={state.view === view} onClick={() => session.view(view)}>{view === "configure" ? "Edit business & branding" : view === "booking" ? "Customer booking" : "Reception"}</button>)}</nav>}
       {(!active || state.view === "configure") && <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_300px]">
         <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-8">
           <nav className="mb-7 flex flex-wrap gap-2" aria-label="Setup steps">{setupSteps.map((name, i) => <button type="button" key={name} disabled={!active && i > state.step} style={step === i ? { backgroundColor: "var(--booking-accent)", color: "var(--booking-on-accent)" } : undefined} aria-current={step === i ? "step" : undefined} className={`${button} ${step === i ? "bg-[var(--booking-accent)] text-[var(--booking-on-accent)] ring-2 ring-slate-700" : ""}`} onClick={() => active ? setEditorStep(i) : session.step(i)}>{i + 1}. {name}</button>)}</nav>
@@ -121,7 +122,7 @@ export default function Playground() {
         </aside>
       </div>}
       {active && state.view !== "configure" && errors.length > 0 && <div role="alert" className="rounded-xl bg-amber-100 p-5"><p>Complete your configuration before booking:</p><ul>{errors.map(e => <li key={e}>{e}</li>)}</ul><button className={button} onClick={() => session.view("configure")}>Review configuration</button></div>}
-      {active && validTimezone(c.business.timezone) && <div className="my-5"><CalendarSimulator key={`${state.epoch}-${state.configRevision}`} session={session} /></div>}
+      {active && validTimezone(c.business.timezone) && <div className={reception ? "reception-simulator mb-2" : "my-5"}><CalendarSimulator key={`${state.epoch}-${state.configRevision}`} session={session} /></div>}
       {active && state.view === "reception" && <PlaygroundDiary key={state.epoch} session={session} today={today} />}
       {active && errors.length === 0 && <>
         {state.view === "booking" && <BookingExperience key={`${state.epoch}-${state.configRevision}`} today={today} now={new Date().toISOString()}

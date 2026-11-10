@@ -3,6 +3,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
 import { PlaygroundSession, configurationErrors, editPerson, emptyConfiguration, SESSION_POLICY } from "../app/features/playground/session";
+import { exceptionBlocks } from "../app/features/playground/diary-projection";
 import { diaryBlocks, diaryColumns, PlaygroundDiary } from "../app/features/playground/diary";
 import { canonicalZone, zoneChoices, zoneLabel, zonePreview, zoneDatePreview, TimezoneChoice } from "../app/features/playground/timezone";
 import { ConfigurationEditor } from "../app/features/playground/setup";
@@ -57,13 +58,13 @@ describe("separate people, workspace roles and bookable staff", () => {
     c = editPerson(c, { ...c.people[0], name: "Renamed owner", roles: ["Reception"] }, false); s.update(c);
     expect(s.getSnapshot().appointments[0]).toEqual(original); expect(s.slots(date, "service-1", "staff-1")).toEqual([]);
     let html = render(createElement(PlaygroundDiary, { session: s, today: date }));
-    expect(html).toContain("Retained bookings"); expect(html).toContain("Test owner"); expect(html).not.toContain("Renamed owner day lane");
+    expect(html).toContain("Exceptions: 2 occupied items"); expect(exceptionBlocks(s.getSnapshot(), date)[0].label).toContain("Test owner"); expect(html).not.toContain("Renamed owner day lane");
     c = editPerson(c, c.people[0], true); c.services[0].eligibleStaffIds = [...c.services[0].eligibleStaffIds, "staff-1"]; s.update(c);
     expect(s.slots(date, "service-1", "staff-1").some(slot => slot.startMinute === 570)).toBe(false);
     expect(s.slots(date, "service-1", "staff-1").some(slot => slot.startMinute === 585)).toBe(true);
     c = editPerson(c, c.people[0], false); c.people = c.people.filter(p => p.id !== "staff-1"); s.update(c);
     html = render(createElement(PlaygroundDiary, { session: s, today: date }));
-    expect(html).toContain("Cancel Test service / Test owner"); expect(s.getSnapshot().appointments[0]).toEqual(original);
+    expect(html).toContain("Exceptions: 2 occupied items"); expect(exceptionBlocks(s.getSnapshot(), date)[0].appointmentId).toBe(original.id); expect(s.getSnapshot().appointments[0]).toEqual(original);
   });
   it("does not change no-preference ordering when editing a name", () => {
     const c = configuration(), edited = editPerson(c, { ...c.people[0], name: "New name" }, true);
@@ -120,8 +121,8 @@ describe("diary projection, conflicts and shared dates", () => {
     expect(blocks.find(b => b.kind === "busy")).toMatchObject({ start: 585, end: 645, conflict: false });
     expect(blocks.filter(b => b.kind === "closed" && b.staffId === "staff-1").map(b => [b.start, b.end])).toEqual([[0, 540], [1020, 1440]]);
     const html = render(createElement(PlaygroundDiary, { session: s, today: date }));
-    expect(html).toContain("top:540px;height:30px"); expect(html).toContain("top:570px;height:15px");
-    expect(html).toContain("Readable agenda"); expect(html).toContain("Business timezone: Africa/Johannesburg");
+    expect(html).toContain("top:0%;height:6.25%"); expect(html).toContain("top:6.25%;height:3.125%");
+    expect(html).not.toContain("Readable agenda"); expect(html).toContain("Africa/Johannesburg");
   });
   it("shows busy overlap with appointment and buffer without hiding or moving blocks", () => {
     const s = active(); s.book(date, "service-1", 540, "staff-1"); s.connectBusy(date, "staff-1", 555, 45);
@@ -130,7 +131,7 @@ describe("diary projection, conflicts and shared dates", () => {
     const columns = diaryColumns(blocks); expect(columns.every(b => b.columns === 2)).toBe(true);
     expect(columns.find(b => b.block.kind === "busy")?.column).toBe(1);
     expect(columns.find(b => b.block.kind === "buffer")?.column).toBe(0);
-    expect(render(createElement(PlaygroundDiary, { session: s, today: date }))).toContain("Conflict: overlaps");
+    expect(render(createElement(PlaygroundDiary, { session: s, today: date }))).toContain("CONFLICT. Open pinned details");
   });
   it("retains booked blocks when hours shrink or the day closes", () => {
     const s = active(); s.book(date, "service-1", 540, "staff-1"); const c = structuredClone(s.getSnapshot().config);
