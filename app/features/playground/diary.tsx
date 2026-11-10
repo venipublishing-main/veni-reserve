@@ -28,6 +28,8 @@ export function PlaygroundDiary({ session, today }: { session: PlaygroundSession
   const [previewPoint, setPreviewPoint] = useState({ x: 12, y: 12 });
   const opener = useRef<HTMLElement | null>(null);
   const pendingPreviewOpener = useRef<HTMLElement | null>(null), previewOpener = useRef<HTMLElement | null>(null);
+  const suppressRestoredFocus = useRef(false);
+  const dismissedHoverTrigger = useRef<HTMLElement | null>(null);
   const [controller] = useState(() => new DetailPreviewController(ids => {
     if (ids) previewOpener.current = pendingPreviewOpener.current;
     setPreview(ids);
@@ -39,7 +41,13 @@ export function PlaygroundDiary({ session, today }: { session: PlaygroundSession
   useEffect(() => { controller.dismiss(); setDetails(null); }, [date, controller]);
   useEffect(() => {
     if (!preview) return;
-    const dismiss = (e: KeyboardEvent) => { if (e.key === "Escape") { controller.dismiss(); e.stopPropagation(); } };
+    const dismiss = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      dismissedHoverTrigger.current = previewOpener.current;
+      const restore = document.getElementById("reception-preview")?.contains(document.activeElement) && previewOpener.current?.isConnected;
+      controller.dismiss(restore ? () => { suppressRestoredFocus.current = true; previewOpener.current?.focus({ preventScroll: true }); } : undefined);
+      e.stopPropagation();
+    };
     document.addEventListener("keydown", dismiss); return () => document.removeEventListener("keydown", dismiss);
   }, [preview, controller]);
   useEffect(() => {
@@ -54,13 +62,18 @@ export function PlaygroundDiary({ session, today }: { session: PlaygroundSession
   };
   const previewEvents = (ids: string[]) => ({
     onPointerEnter: (e: React.PointerEvent<HTMLElement>) => {
-      if (e.pointerType === "touch" || details || composer) return;
+      if (e.pointerType === "touch" || details || composer || dismissedHoverTrigger.current === e.currentTarget) return;
       const box = e.currentTarget.getBoundingClientRect(); pendingPreviewOpener.current = e.currentTarget;
       setPreviewPoint({ x: Math.max(12, Math.min(box.right + 8, window.innerWidth - 332)), y: Math.max(12, Math.min(box.top, window.innerHeight - 250)) }); controller.enter(ids);
     },
-    onPointerLeave: (e: React.PointerEvent<HTMLElement>) => { if (!e.currentTarget.contains(document.activeElement)) controller.leave(); },
+    onPointerLeave: (e: React.PointerEvent<HTMLElement>) => {
+      if (dismissedHoverTrigger.current === e.currentTarget) dismissedHoverTrigger.current = null;
+      if (!e.currentTarget.contains(document.activeElement)) controller.leave();
+    },
     onFocus: (e: React.FocusEvent<HTMLElement>) => {
+      if (suppressRestoredFocus.current) { suppressRestoredFocus.current = false; return; }
       if (details || composer) return;
+      dismissedHoverTrigger.current = null;
       const box = e.currentTarget.getBoundingClientRect(); pendingPreviewOpener.current = e.currentTarget;
       setPreviewPoint({ x: Math.max(12, Math.min(box.right + 8, window.innerWidth - 332)), y: Math.max(12, Math.min(box.top, window.innerHeight - 250)) }); controller.enter(ids);
     },
@@ -130,7 +143,10 @@ export function PlaygroundDiary({ session, today }: { session: PlaygroundSession
     {visiblePreview && visiblePreview.length > 0 && <aside id="reception-preview" role="region" aria-label="Read-only appointment preview" tabIndex={0}
       className="reception-preview fixed z-40 max-h-56 w-80 overflow-auto rounded-xl border border-slate-300 bg-white p-3 text-slate-900 shadow-xl" style={{ left: previewPoint.x, top: previewPoint.y }}
       onPointerEnter={() => controller.keep()} onPointerLeave={e => { if (!e.currentTarget.contains(document.activeElement)) controller.leave(); }} onFocus={() => controller.keep()} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) controller.leave(); }}>
-      {detailItems(visiblePreview, false)}<div className="mt-2 flex gap-2"><button className={button} onClick={() => { controller.dismiss(); opener.current = previewOpener.current; setDetails(visiblePreview); }}>Pin details</button><button className={button} onClick={() => controller.dismiss()}>Dismiss</button></div>
+      {detailItems(visiblePreview, false)}<div className="mt-2 flex gap-2"><button className={button} onClick={() => { controller.dismiss(); opener.current = previewOpener.current; setDetails(visiblePreview); }}>Pin details</button><button className={button} onClick={() => controller.dismiss(() => {
+        dismissedHoverTrigger.current = previewOpener.current;
+        if (previewOpener.current?.isConnected) { suppressRestoredFocus.current = true; previewOpener.current.focus({ preventScroll: true }); }
+      })}>Dismiss</button></div>
     </aside>}
     {details && <ReceptionDialog title="Occupied time details" returnFocus={opener.current} onClose={() => setDetails(null)}>{detailItems(details, true)}{!details.some(id => blocks.some(b => b.id === id)) && <p>No occupied items remain.</p>}</ReceptionDialog>}
     {composer && <ReceptionComposer session={session} seed={composer} returnFocus={opener.current} onClose={() => { setComposer(null); setMessage("Booking composer closed."); }} />}

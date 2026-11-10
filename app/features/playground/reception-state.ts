@@ -31,7 +31,7 @@ export class DetailPreviewController {
   }
   keep() { clearTimeout(this.dismissTimer); }
   leave() { clearTimeout(this.timer); this.dismissTimer = setTimeout(() => this.show(null), 250); }
-  dismiss() { this.dispose(); this.show(null); }
+  dismiss(restoreFocus?: () => void) { this.dispose(); this.show(null); restoreFocus?.(); }
   preference(mode: DetailsMode) { this.mode = mode; this.dismiss(); }
   dispose() { clearTimeout(this.timer); clearTimeout(this.dismissTimer); }
 }

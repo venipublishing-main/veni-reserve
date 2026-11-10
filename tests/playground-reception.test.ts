@@ -116,6 +116,13 @@ describe("read-only delayed preview and movable composer safeguards", () => {
     controller.preference("hover"); controller.enter(["old"]); controller.preference("click"); show.mockClear(); vi.runAllTimers(); expect(show).not.toHaveBeenCalled();
     controller.preference("hover"); controller.enter(["old"]); controller.dispose(); show.mockClear(); vi.runAllTimers(); expect(show).not.toHaveBeenCalled();
   });
+  it("restores focus after explicit dismissal without leaving a delayed preview queued", () => {
+    vi.useFakeTimers(); const events: string[] = [], controller = new DetailPreviewController(ids => events.push(ids ? "show" : "hide"));
+    controller.preference("hover"); controller.enter(["one"]); vi.advanceTimersByTime(450);
+    controller.enter(["two"]); controller.dismiss(() => events.push("restore-focus"));
+    expect(events.slice(-2)).toEqual(["hide", "restore-focus"]);
+    vi.runAllTimers(); expect(events.at(-1)).toBe("restore-focus");
+  });
   it.each([{ x: -500, y: -100 }, { x: 3000, y: 2000 }, { x: 400, y: 100 }])("clamps drag/dock position inside viewport: %o", point => {
     const result = clampPosition(point, { width: 1366, height: 768 }, { width: 460, height: 550 });
     expect(result.x).toBeGreaterThanOrEqual(12); expect(result.x + 460).toBeLessThanOrEqual(1354);
