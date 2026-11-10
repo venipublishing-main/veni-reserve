@@ -2,7 +2,7 @@ import { useState, useSyncExternalStore } from "react";
 import { ReceptionExperience } from "../booking/reception-experience";
 import { bookingTheme } from "../booking/theme";
 import { addDays, minutesLabel } from "../demo/booking";
-import { zonePreview } from "./timezone";
+import { zoneDatePreview } from "./timezone";
 import type { PlaygroundSession, SessionState } from "./session";
 
 export type DiaryBlock = { id: string; staffId: string; start: number; end: number;
@@ -73,7 +73,7 @@ export function PlaygroundDiary({ session, today }: { session: PlaygroundSession
       <button className="rounded border p-2" onClick={() => session.selectDiaryDate(addDays(date, 1))}>Next day</button>
       {(["day", "agenda"] as const).map(v => <button key={v} aria-pressed={view === v} className={`rounded border p-2 ${view === v ? "bg-[var(--booking-accent)] text-[var(--booking-on-accent)]" : ""}`} onClick={() => setView(v)}>{v === "day" ? "Day" : "Agenda"}</button>)}
     </div>
-    <p className="text-sm">Business timezone: {c.business.timezone}. {zonePreview(c.business.timezone, new Date(`${date}T12:00:00Z`))} (selected-date reference).</p>
+    <p className="text-sm">Business timezone: {c.business.timezone}. {zoneDatePreview(c.business.timezone, date)} (selected-date local-noon reference).</p>
     <p className="text-sm">Legend: solid = appointment; dashed amber = post-service buffer; double violet = simulated busy; grey = closed. Empty space is not a promise of availability for every service.</p>
     {view === "day" && <div className="hidden md:block">
       <div className="overflow-x-auto"><div className="grid min-w-[600px]" style={{ gridTemplateColumns: `60px repeat(${Math.max(1, c.staff.length)}, minmax(160px, 1fr))` }}>

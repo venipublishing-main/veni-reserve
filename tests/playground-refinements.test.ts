@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
 import { PlaygroundSession, configurationErrors, editPerson, emptyConfiguration, SESSION_POLICY } from "../app/features/playground/session";
 import { diaryBlocks, diaryColumns, PlaygroundDiary } from "../app/features/playground/diary";
-import { canonicalZone, zoneChoices, zoneLabel, zonePreview, TimezoneChoice } from "../app/features/playground/timezone";
+import { canonicalZone, zoneChoices, zoneLabel, zonePreview, zoneDatePreview, TimezoneChoice } from "../app/features/playground/timezone";
 import { ConfigurationEditor } from "../app/features/playground/setup";
 import { bookingTheme } from "../app/features/booking/theme";
 
@@ -94,6 +94,11 @@ describe("timezone choice and instant protection", () => {
     expect(zonePreview("America/New_York", new Date("2026-01-15T12:00:00Z"))).toContain("UTC-05:00");
     expect(zonePreview("America/New_York", new Date("2026-07-15T12:00:00Z"))).toContain("UTC-04:00");
     expect(zonePreview("Asia/Kolkata", new Date(now))).toContain("UTC+05:30");
+  });
+  it("anchors the diary preview to the selected local date even beyond UTC+12", () => {
+    const preview = zoneDatePreview("Pacific/Kiritimati", date);
+    expect(preview).toContain("11 Nov 2026"); expect(preview).toContain("12:00:00"); expect(preview).toContain("UTC+14:00");
+    expect(zoneDatePreview("Pacific/Apia", "2011-12-30")).toContain("unavailable");
   });
   it("blocks timezone edits for appointments and for busy time independently", () => {
     const s = active(); s.book(date, "service-1", 540, "staff-1"); const appointment = s.getSnapshot().appointments[0];

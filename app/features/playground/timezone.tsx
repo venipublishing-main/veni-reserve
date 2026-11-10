@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { dayClock } from "../booking/availability";
 
 export function canonicalZone(zone: string): string | null {
   try { return zone ? new Intl.DateTimeFormat("en", { timeZone: zone }).resolvedOptions().timeZone : null; }
@@ -20,6 +21,12 @@ export function zonePreview(zone: string, instant: Date): string {
     return new Intl.DateTimeFormat("en-GB", { timeZone: zone, dateStyle: "medium", timeStyle: "long" }).format(instant) +
       " · " + (new Intl.DateTimeFormat("en", { timeZone: zone, timeZoneName: "longOffset" }).formatToParts(instant).find(p => p.type === "timeZoneName")?.value.replace("GMT", "UTC") ?? "UTC offset unavailable");
   } catch { return "Time preview unavailable; choose a supported timezone."; }
+}
+export function zoneDatePreview(zone: string, date: string): string {
+  try {
+    const noon = dayClock(date, zone)(720);
+    return noon === null ? "Local noon is unavailable on this date." : zonePreview(zone, new Date(noon));
+  } catch { return "Selected-date time preview unavailable."; }
 }
 export function TimezoneChoice({ value, locked, onChange }: { value: string; locked: boolean; onChange: (zone: string) => void }) {
   const [query, setQuery] = useState("");
