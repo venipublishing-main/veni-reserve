@@ -20,6 +20,7 @@ function setup() {
   c.location.name = "Garden studio";
   c.services[0] = { ...c.services[0], name: "Clay introduction", durationMinutes: 30, bufferAfterMinutes: 15, eligibleStaffIds: ["staff-1"], price: "150.00" };
   c.staff[0].name = "Fictional Maker";
+  c.people[0] = { id: "staff-1", name: "Fictional Maker", roles: ["Owner"] };
   return c;
 }
 function active(clock = () => now, revoke = vi.fn()) {
@@ -106,7 +107,7 @@ describe("shared scheduling and simulated mutations", () => {
   });
   it("enforces service/staff/location eligibility without fallback to VVB fixtures", () => {
     const s = active(), c = structuredClone(s.getSnapshot().config);
-    c.staff.push({ id: "staff-2", name: "Other person", initials: "O", role: "", locationIds: [c.location.id] }); s.update(c);
+    c.staff.push({ id: "staff-2", name: "Other person", initials: "O", role: "", locationIds: [c.location.id] }); c.people.push({ id: "staff-2", name: "Other person", roles: ["Staff"] }); s.update(c);
     expect(s.slots(date, "service-1", "staff-2")).toEqual([]); expect(s.slots(date, "unknown", "any")).toEqual([]);
     expect(s.slots(date, "service-1", "any").every(slot => slot.staffId === "staff-1")).toBe(true);
     c.services[0].locationIds = ["another-location"]; s.update(c); expect(s.slots(date, "service-1", "any")).toEqual([]);

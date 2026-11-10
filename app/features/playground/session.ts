@@ -6,29 +6,36 @@ import type { DemoService, DemoPractitioner } from "../demo/booking";
 import type { ReceptionAppointment } from "../booking/reception-experience";
 
 export const SESSION_POLICY = { inactivityMs: 60 * 60_000, warningMs: 5 * 60_000 } as const;
+export const WORKSPACE_ROLES = ["Owner", "Admin", "Reception", "Staff"] as const;
+export type TeamPerson = { id: string; name: string; roles: (typeof WORKSPACE_ROLES)[number][] };
 export type Configuration = {
   business: { name: string; category: string; timezone: string };
   location: { id: string; name: string };
+  // Local person/role metadata is not a User or Membership. Only the linked
+  // staff subset accepts bookings; role selection never grants bookability.
+  people: TeamPerson[];
   services: (DemoService & { price: string; locationIds: string[] })[];
   staff: (DemoPractitioner & { locationIds: string[] })[];
   days: number[]; opens: number; closes: number;
-  theme: { primary: string; logoUrl?: string };
+  theme: { primary: string; accent: string; logoUrl?: string };
 };
 export type SimulatedAppointment = ReceptionAppointment & { start: number; end: number; locationId: string };
 export type SessionState = {
   phase: "setup" | "active"; step: number; view: "booking" | "reception" | "configure";
   config: Configuration; baseline: Configuration | null; appointments: SimulatedAppointment[];
   calendar: SimulatedCalendarState;
+  diaryDate: string;
   lastActivity: number; epoch: number; configRevision: number; nextId: number; notice: string;
 };
 
 export function emptyConfiguration(): Configuration {
   return {
     business: { name: "", category: "", timezone: "" }, location: { id: "location-1", name: "" },
+    people: [{ id: "staff-1", name: "", roles: [] }],
     services: [{ id: "service-1", name: "", description: "", durationMinutes: 30,
       bufferAfterMinutes: 0, price: "", eligibleStaffIds: [], locationIds: ["location-1"] }],
     staff: [{ id: "staff-1", name: "", role: "", initials: "", locationIds: ["location-1"] }],
-    days: [1, 2, 3, 4, 5], opens: 9 * 60, closes: 17 * 60, theme: { primary: "#244b42" },
+    days: [1, 2, 3, 4, 5], opens: 9 * 60, closes: 17 * 60, theme: { primary: "#244b42", accent: "#d8e9d9" },
   };
 }
 const text = (s: unknown, max = 100): s is string => typeof s === "string" &&
@@ -36,6 +43,17 @@ const text = (s: unknown, max = 100): s is string => typeof s === "string" &&
 export function validTimezone(zone: string) {
   try { return !!zone && !!new Intl.DateTimeFormat("en", { timeZone: zone }).resolvedOptions().timeZone; }
   catch { return false; }
+}
+/** Keep one identity while independently editing simulated roles and booking settings. */
+export function editPerson(c: Configuration, person: TeamPerson, bookable: boolean): Configuration {
+  const existing = c.staff.find(p => p.id === person.id);
+  return { ...c, people: c.people.map(p => p.id === person.id ? person : p),
+    staff: [...c.staff.filter(p => p.id !== person.id), ...(bookable ? [{
+      ...(existing ?? { id: person.id, role: "", locationIds: [c.location.id] }),
+      name: person.name, initials: person.name.slice(0, 2).toUpperCase(),
+    }] : [])].sort((a, b) => c.people.findIndex(p => p.id === a.id) - c.people.findIndex(p => p.id === b.id)),
+    services: c.services.map(s => ({ ...s, eligibleStaffIds: bookable ? s.eligibleStaffIds : s.eligibleStaffIds.filter(id => id !== person.id) })),
+  };
 }
 export function configurationErrors(c: Configuration, step?: number): string[] {
   const errors: { step: number; message: string }[] = [];
@@ -56,8 +74,13 @@ export function configurationErrors(c: Configuration, step?: number): string[] {
       "Assign at least one eligible person to every service.");
     check(2, s.locationIds.includes(c.location.id), "Services must belong to this location.");
   }
-  check(2, c.staff.length >= 1 && c.staff.length <= 2 && c.staff.every(p => text(p.name) && p.locationIds.includes(c.location.id)),
-    "Name one or two staff members at this location.");
+  check(2, c.people.length >= 1 && c.people.length <= 3 && c.people.every(p => text(p.name)),
+    "Name one to three people (a Playground limit only).");
+  check(2, new Set(c.people.map(p => p.id)).size === c.people.length && c.people.every(p => p.roles.length > 0 &&
+    new Set(p.roles).size === p.roles.length && p.roles.every(role => WORKSPACE_ROLES.includes(role))),
+    "Choose at least one simulated workspace role per person; person identities must be unique.");
+  check(2, c.staff.length >= 1 && c.staff.every(p => text(p.name) && p.locationIds.includes(c.location.id) &&
+    c.people.some(person => person.id === p.id && person.name === p.name)), "Enable bookings for at least one named person at this location.");
   check(2, new Set(c.staff.map(p => p.id)).size === c.staff.length, "Staff identities must be unique.");
   check(3, c.days.length > 0 && c.days.every(d => Number.isInteger(d) && d >= 0 && d <= 6), "Select at least one operating day.");
   check(3, Number.isInteger(c.opens) && Number.isInteger(c.closes) && c.opens >= 0 && c.closes <= 1440 && c.opens < c.closes,
@@ -65,6 +88,7 @@ export function configurationErrors(c: Configuration, step?: number): string[] {
   check(3, c.services.every(s => s.durationMinutes + s.bufferAfterMinutes <= c.closes - c.opens),
     "Every service and its buffer must fit inside operating hours.");
   check(4, /^#[0-9a-f]{6}$/i.test(c.theme.primary), "Choose a six-digit hexadecimal primary colour.");
+  check(4, /^#[0-9a-f]{6}$/i.test(c.theme.accent), "Choose a six-digit hexadecimal accent colour.");
   return [...new Set(errors.filter(e => step === undefined || e.step === step).map(e => e.message))];
 }
 
@@ -77,7 +101,7 @@ function immutable<T>(value: T): T {
 }
 function initial(now: number, epoch = 0, notice = ""): SessionState {
   return immutable({ phase: "setup", step: 0, view: "booking", config: emptyConfiguration(), baseline: null,
-    appointments: [], calendar: { connected: false, busy: null }, lastActivity: now, epoch,
+    appointments: [], calendar: { connected: false, busy: null }, diaryDate: "", lastActivity: now, epoch,
     configRevision: 0, nextId: 1, notice });
 }
 
@@ -123,12 +147,13 @@ export class PlaygroundSession implements BookingAdapter {
     if (!this.touch() || !this.state.baseline) return;
     this.emit({ ...this.state, config: structuredClone(this.state.baseline), appointments: [],
       calendar: { connected: false, busy: null }, view: "booking", epoch: this.state.epoch + 1, configRevision: this.state.configRevision + 1,
+      diaryDate: addDays(todayInTimeZone(new Date(this.clock()), this.state.baseline.business.timezone), 1),
       nextId: 1, notice: "Restored your original tutorial configuration." });
   }
   update(config: Configuration) {
     if (!this.touch()) return;
-    if (this.state.appointments.length && config.business.timezone !== this.state.config.business.timezone) {
-      this.emit({ ...this.state, notice: "Cancel appointments before changing timezone." }); return;
+    if ((this.state.appointments.length || this.state.calendar.busy) && config.business.timezone !== this.state.config.business.timezone) {
+      this.emit({ ...this.state, notice: "Cancel appointments and disconnect simulated busy time before changing timezone. Stored instants remain unchanged." }); return;
     }
     // Only this session's validated image pipeline may supply object URLs.
     if (config.theme.logoUrl && !this.urls.has(config.theme.logoUrl)) return;
@@ -150,10 +175,15 @@ export class PlaygroundSession implements BookingAdapter {
     if (this.state.phase !== "setup") return ["The original tutorial baseline is already captured."];
     const errors = configurationErrors(this.state.config);
     if (errors.length) return errors;
-    this.emit({ ...this.state, phase: "active", baseline: structuredClone(this.state.config), view: "booking", notice: "Your playground is ready. Everything stays in this tab." });
+    this.emit({ ...this.state, phase: "active", baseline: structuredClone(this.state.config), view: "booking",
+      diaryDate: addDays(todayInTimeZone(new Date(this.clock()), this.state.config.business.timezone), 1), notice: "Your playground is ready. Everything stays in this tab." });
     return [];
   }
   view(view: SessionState["view"]) { if (this.touch()) this.emit({ ...this.state, view }); }
+  selectDiaryDate(date: string) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(date)) &&
+      new Date(date).toISOString().slice(0, 10) === date && this.touch()) this.emit({ ...this.state, diaryDate: date });
+  }
   slots(date: string, serviceId: string, staffId: string) {
     const s = this.state, c = s.config;
     if (s.phase !== "active" || this.clock() - s.lastActivity >= this.policy.inactivityMs || configurationErrors(c).length) return [];
@@ -178,7 +208,7 @@ export class PlaygroundSession implements BookingAdapter {
     const c = this.state.config, service = c.services.find(s => s.id === serviceId)!, person = c.staff.find(p => p.id === slot.staffId)!;
     const start = dayClock(date, c.business.timezone)(minute)!;
     const id = `synthetic-${this.state.nextId}`;
-    this.emit({ ...this.state, nextId: this.state.nextId + 1, appointments: [...this.state.appointments, {
+    this.emit({ ...this.state, diaryDate: date, nextId: this.state.nextId + 1, appointments: [...this.state.appointments, {
       id, date, startMinute: minute, durationMinutes: service.durationMinutes, bufferAfterMinutes: service.bufferAfterMinutes,
       staffId: slot.staffId, serviceId, locationId: c.location.id, customerLabel: `Synthetic visitor ${this.state.nextId}`,
       status: "scheduled", start, end: start + (service.durationMinutes + service.bufferAfterMinutes) * 60_000,

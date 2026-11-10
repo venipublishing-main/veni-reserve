@@ -15,21 +15,24 @@ import {
 export type ReceptionAppointment = DemoAppointment & { serviceName?: string; staffName?: string };
 export function ReceptionExperience({ today, business = DEMO_BUSINESS,
   people = DEMO_PRACTITIONERS, services = DEMO_SERVICES, appointmentsFor = syntheticAppointments,
-  onCancel, onBooking, initialDate,
+  onCancel, onBooking, initialDate, selectedDate, onDateChange,
 }: {
   today: string;
-  initialDate?: string;
-  business?: { name: string; descriptor: string; primary?: string };
+  initialDate?: string; selectedDate?: string; onDateChange?: (date: string) => void;
+  business?: { name: string; descriptor: string; primary?: string; accent?: string };
   people?: readonly DemoPractitioner[]; services?: readonly DemoService[];
   appointmentsFor?: (date: string) => ReceptionAppointment[];
   onCancel?: (id: string) => void; onBooking?: () => void;
 }) {
-  const [date, setDate] = useState(initialDate ?? today);
+  const [localDate, setLocalDate] = useState(initialDate ?? today);
+  const date = selectedDate ?? localDate;
+  const setDate = onDateChange ?? setLocalDate;
   const [filter, setFilter] = useState("all");
-  const options = useMemo(
+  const dateOptions = useMemo(
     () => Array.from({ length: onCancel ? 15 : 12 }, (_, index) => addDays(today, index)),
     [today, onCancel],
   );
+  const options = dateOptions.includes(date) ? dateOptions : [...dateOptions, date];
   const all = appointmentsFor(date);
   const appointments = all.filter((entry) => filter === "all" || entry.staffId === filter);
   const timeBooked = all.reduce((sum, entry) => sum + entry.durationMinutes, 0);
@@ -37,7 +40,7 @@ export function ReceptionExperience({ today, business = DEMO_BUSINESS,
   const serviceNames = Object.fromEntries(services.map((service) => [service.id, service.name]));
 
   return (
-    <main style={bookingTheme(business.primary)} className="min-h-screen bg-[#f5f7f4] text-[#23372c]">
+    <main style={bookingTheme(business.primary, business.accent)} className="min-h-screen bg-[#f5f7f4] text-[#23372c]">
       <div className="bg-[#fff4d9] px-5 py-2.5 text-center text-xs font-semibold text-[#765121]">
         {onCancel ? "PLAYGROUND RECEPTION · Synthetic appointments in this tab only" : "SYNTHETIC RECEPTION PREVIEW · No authentication, real customers, database reads or appointment changes"}
       </div>

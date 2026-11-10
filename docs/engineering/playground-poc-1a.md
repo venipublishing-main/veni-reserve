@@ -68,21 +68,22 @@ signature checks precede browser decoding. Images are resized to at most 1024 px
 on their longest edge, re-encoded as PNG, and held as local object URLs. No SVG,
 remote image import, uploaded fonts, arbitrary CSS, JavaScript or server upload.
 Browser raster decoding is not a server malware-scanning service; decoded size
-is checked after decoding. Only validated hexadecimal primary colours enter CSS
+is checked after decoding. Only validated hexadecimal primary/accent colours enter CSS
 custom properties, with derived contrasting foreground text. Theme edits cannot
 change scheduling.
 
 ## Limits
 
-- One location, up to ten services, one or two staff, 200 synthetic appointments.
+- One location, up to ten services, one to three people, 200 synthetic appointments.
+  Three people is a Playground cap, not a production limit.
 - Shared staff operating hours, same-day windows; no overnight hours or resource
   pools. Prices are illustrative amounts without payment/currency processing.
 - Timezone-aware local-to-UTC mapping; nonexistent/repeated wall times and slots
   crossing clock changes fail closed. This is bounded POC support, not full M3
-  completion. Timezone cannot change while appointments remain.
+  completion. Timezone cannot change while appointments or simulated busy time remain.
 - Synthetic visitor labels are generated; playground booking collects no contact
   details. Existing VVB preview retains its original fictional-details form.
-- Primary colour and local logo only, not a complete M7 Theme Studio. No cloud
+- Primary/accent colours and local logo only, not a complete M7 Theme Studio. No cloud
   Save Draft, publishing, account conversion, rescheduling or real integrations.
 
 ## Validation and manual acceptance
@@ -122,3 +123,77 @@ perform this manual checklist at desktop, tablet and mobile widths:
 
 No screenshot, browser-console or interactive-browser PASS is claimed by the
 code/SSR tests. Review this stacked PR before merging either branch or deploying.
+
+## Owner-feedback refinement (PR #10 comment 6769488911)
+
+`Configuration.people` contains local display identity and a role array (Owner,
+Admin, Reception, Staff). `Configuration.staff` is the separately linked bookable
+subset, using the same identity, not another person or a User/Membership. Roles
+never grant booking eligibility or production authorization. Turning booking off
+removes eligibility; turning it back on requires explicit service reassignment.
+Removing a person never deletes appointments or busy instants. New optional people
+get fresh IDs; deleted IDs are not recycled. Editing names preserves staff order.
+
+Timezone selection is a filtered native select with friendly city/IANA labels.
+The client offers its configured zone explicitly after mount; it never overwrites
+the visitor's choice or requests location. Supported aliases resolve through Intl.
+Missing supportedValuesOf falls back to a small validated choice list; missing
+timezone support blocks setup safely. Initial rendering has no device/time-dependent
+markup. Current-time and selected-diary-date reference offsets are calculated for
+their respective instants; they are not fixed business offsets.
+
+`diaryBlocks` projects the session into appointment, buffer, external busy and
+closed intervals. It is not an availability engine. Half-open boundaries and
+separate overlap columns preserve actual block positions; conflicts with busy or
+closed time are labelled. Snapshots and a separate retained-bookings section keep
+removed/non-bookable people out of provider lanes without losing their bookings.
+Cancellation remains accessible while configuration is invalid. Disconnect also
+remains available so invalid edits cannot trap a simulated connection.
+
+Day and Agenda share the simulator's `diaryDate`; a booking selects its own date.
+The Day grid uses one pixel per wall-clock minute for a full local day. Short
+blocks link to complete keyboard-focusable details. On mobile the readable agenda
+replaces the grid. The existing reception component supplies the Agenda appointment
+table with an optional controlled date; its VVB defaults remain unchanged.
+
+Accent tokens affect setup/view selection, the preview stripe and booking icons.
+Foregrounds are derived for contrast. Buffer, busy, closed and warning colours
+retain their semantic meanings. Theme cannot affect scheduling. Both colours,
+roles and bookability are included in the original immutable baseline and all
+existing reset/expiry/logo ownership rules still apply.
+
+### Refinement acceptance checklist
+
+Automated code/render checks cover all previous tests plus three-person setup,
+multi-role owner identity, non-bookable exclusion, snapshot/capacity retention,
+timezone aliases/fallback/seasonal offsets/locks, diary geometry and conflict
+columns, closed-time edits, cancellation/disconnect separation, shared dates,
+midnight boundaries, accent safety and expanded lifecycle restoration.
+
+Manual browser acceptance remains **pending**; no browser controls were retried.
+At desktop, tablet and mobile widths:
+
+- [ ] Enter three fictional people: a bookable Owner, a bookable Staff person and
+  a non-bookable Reception person. Check eligibility, no-preference assignment and
+  provider lanes. Remove/re-add a slot; no names should be invented.
+- [ ] Filter timezones with keyboard/touch. Check the browser suggestion does not
+  change your explicit choice, and current/selected-date offsets are understandable.
+  Verify both appointments and busy periods independently lock timezone editing.
+- [ ] Book with a buffer. Verify Day geometry and Agenda details, shared simulator
+  date, mobile readability and keyboard access to short blocks/cancellation.
+- [ ] Overlay simulated busy time on the appointment and buffer. Conflicts remain
+  visible side by side. Cancel and disconnect separately; check availability.
+- [ ] Rename/remove/make the booked person non-bookable, or shorten hours. Verify
+  original snapshot details remain visible and cancellable. Re-enable booking and
+  service eligibility: the original protected interval must still be unavailable.
+- [ ] Try very light/dark accent and primary colours. Check previews, selected
+  states, focus visibility and unchanged semantic colours in both reception views.
+- [ ] Restore baseline, then hard-reset/expire: check people, roles, bookability,
+  both colours, logo cleanup and diary/calendar state. Repeat the earlier lifecycle
+  checklist and unchanged VVB routes; inspect the browser console.
+
+Known limits: one simulated external busy interval, shared hours, no overnight
+services, no drag/drop, no real calendar, and deliberately unavailable ambiguous
+booking times. The full-day diary is a wall-clock projection, not a DST transition
+editor. It does not assert that empty space is bookable. Small grid labels may be
+clipped; complete details and the mobile agenda are always available below.

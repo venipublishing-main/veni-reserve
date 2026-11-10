@@ -18,7 +18,7 @@ const steps = ["Service", "Practitioner", "Date & time", "Your details"] as cons
 
 export type BookingExperienceProps = {
   today: string; now: string;
-  business?: { name: string; descriptor: string; timezone: string; note: string; location: string; primary?: string; logoUrl?: string };
+  business?: { name: string; descriptor: string; timezone: string; note: string; location: string; primary?: string; accent?: string; logoUrl?: string };
   services?: readonly DemoService[]; people?: readonly DemoPractitioner[];
   slotsFor?: (date: string, serviceId: string, staffId: string) => DemoSlot[];
   onBook?: (date: string, serviceId: string, slot: DemoSlot) => string | null;
@@ -75,7 +75,7 @@ export function BookingExperience({ today, now, services = DEMO_SERVICES, people
   }
 
   return (
-    <main style={bookingTheme(business.primary)} className="min-h-screen bg-[#f5f6f3] text-[#23332d]">
+    <main style={bookingTheme(business.primary, business.accent)} className="min-h-screen bg-[#f5f6f3] text-[#23332d]">
       <div className="border-b border-amber-200 bg-[#fff4d9] px-5 py-2.5 text-center text-xs font-semibold tracking-wide text-[#765121]">
         {onBook ? "YOUR PLAYGROUND · Simulated appointments in this tab only" : "INTERACTIVE DEMO · Synthetic services, staff, times and visitors · No real appointment can be created"}
       </div>
@@ -143,7 +143,7 @@ export function BookingExperience({ today, now, services = DEMO_SERVICES, people
                       {services.map((entry, index) => (
                         <button key={entry.id} type="button" onClick={() => chooseService(entry.id)}
                           className="flex w-full items-center gap-4 rounded-2xl border border-[#e2e9e2] p-4 text-left transition hover:border-[#8eaa95] hover:bg-[#f8faf7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--booking-primary)] sm:p-5">
-                          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#e7efe8] text-xl font-semibold text-[#446b55]">
+                          <span style={business.accent ? { backgroundColor: "var(--booking-accent)", color: "var(--booking-on-accent)" } : undefined} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#e7efe8] text-xl font-semibold text-[#446b55]">
                             {["◉", "◎", "◇"][index]}
                           </span>
                           <span className="flex-1">
@@ -166,7 +166,7 @@ export function BookingExperience({ today, now, services = DEMO_SERVICES, people
                     <div className="mt-7 space-y-3">
                       <button type="button" onClick={() => chooseStaff("any")}
                         className="flex w-full items-center gap-4 rounded-2xl border border-[#d5e4d6] bg-[#f1f8f0] p-5 text-left hover:border-[#6c9077] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--booking-primary)]">
-                        <span className="flex h-12 w-12 items-center justify-center rounded-full bg-[#d8e9d9] text-xl">✦</span>
+                        <span style={business.accent ? { color: "var(--booking-on-accent)" } : undefined} className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--booking-accent)] text-xl">✦</span>
                         <span className="flex-1"><span className="block font-semibold">No preference</span><span className="mt-1 block text-sm text-[#768778]">Show me the available appointments</span></span>
                         <span aria-hidden="true" className="text-xl text-[#5b7c67]">→</span>
                       </button>
