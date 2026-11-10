@@ -1,3 +1,6 @@
+import { defaultHours, dayPeriods, validHours } from "./scheduling";
+import type { WeeklyHours } from "./scheduling";
+import { offlineLocalities } from "./localities";
 import { availableSlots, dayClock } from "../booking/availability";
 import { simulatedCalendar } from "./calendar";
 import type { SimulatedCalendarState } from "./calendar";
@@ -10,13 +13,13 @@ export const WORKSPACE_ROLES = ["Owner", "Admin", "Reception", "Staff"] as const
 export type TeamPerson = { id: string; name: string; roles: (typeof WORKSPACE_ROLES)[number][] };
 export type Configuration = {
   business: { name: string; category: string; timezone: string };
-  location: { id: string; name: string };
+  location: { id: string; name: string; address: string; localityId: string };
   // Local person/role metadata is not a User or Membership. Only the linked
   // staff subset accepts bookings; role selection never grants bookability.
   people: TeamPerson[];
   services: (DemoService & { price: string; locationIds: string[] })[];
   staff: (DemoPractitioner & { locationIds: string[] })[];
-  days: number[]; opens: number; closes: number;
+  hours: WeeklyHours; startInterval: number;
   theme: { primary: string; accent: string; logoUrl?: string };
 };
 export type SimulatedAppointment = ReceptionAppointment & { start: number; end: number; locationId: string };
@@ -30,12 +33,12 @@ export type SessionState = {
 
 export function emptyConfiguration(): Configuration {
   return {
-    business: { name: "", category: "", timezone: "" }, location: { id: "location-1", name: "" },
+    business: { name: "", category: "", timezone: "" }, location: { id: "location-1", name: "", address: "", localityId: "" },
     people: [{ id: "staff-1", name: "", roles: [] }],
     services: [{ id: "service-1", name: "", description: "", durationMinutes: 30,
       bufferAfterMinutes: 0, price: "", eligibleStaffIds: [], locationIds: ["location-1"] }],
     staff: [{ id: "staff-1", name: "", role: "", initials: "", locationIds: ["location-1"] }],
-    days: [1, 2, 3, 4, 5], opens: 9 * 60, closes: 17 * 60, theme: { primary: "#244b42", accent: "#d8e9d9" },
+    hours: defaultHours(), startInterval: 15, theme: { primary: "#244b42", accent: "#d8e9d9" },
   };
 }
 const text = (s: unknown, max = 100): s is string => typeof s === "string" &&
@@ -59,6 +62,8 @@ export function configurationErrors(c: Configuration, step?: number): string[] {
   const errors: { step: number; message: string }[] = [];
   const check = (s: number, valid: boolean, message: string) => { if (!valid) errors.push({ step: s, message }); };
   check(0, text(c.business.name) && text(c.location.name), "Name your business and location (up to 100 characters each).");
+  check(0, c.location.address === "" || text(c.location.address, 250), "Keep the optional address under 250 characters.");
+  check(0, c.location.localityId === "" || !!offlineLocalities.resolve(c.location.localityId), "Choose a known locality or use manual timezone selection.");
   check(0, validTimezone(c.business.timezone), "Choose a valid business timezone.");
   check(0, c.business.category === "" || text(c.business.category, 60), "Keep the optional category under 60 characters.");
   check(1, c.services.length >= 1 && c.services.length <= 10, "Add between one and ten services.");
@@ -82,11 +87,8 @@ export function configurationErrors(c: Configuration, step?: number): string[] {
   check(2, c.staff.length >= 1 && c.staff.every(p => text(p.name) && p.locationIds.includes(c.location.id) &&
     c.people.some(person => person.id === p.id && person.name === p.name)), "Enable bookings for at least one named person at this location.");
   check(2, new Set(c.staff.map(p => p.id)).size === c.staff.length, "Staff identities must be unique.");
-  check(3, c.days.length > 0 && c.days.every(d => Number.isInteger(d) && d >= 0 && d <= 6), "Select at least one operating day.");
-  check(3, Number.isInteger(c.opens) && Number.isInteger(c.closes) && c.opens >= 0 && c.closes <= 1440 && c.opens < c.closes,
-    "Closing time must follow opening time on the same day.");
-  check(3, c.services.every(s => s.durationMinutes + s.bufferAfterMinutes <= c.closes - c.opens),
-    "Every service and its buffer must fit inside operating hours.");
+  check(3, validHours(c.hours), "Use seven weekday schedules with non-overlapping whole-minute periods between 00:00 and 24:00. Overnight periods are unsupported.");
+  check(3, Number.isInteger(c.startInterval) && c.startInterval > 0 && c.startInterval <= 1440, "Booking-start interval must be 1-1440 whole minutes.");
   check(4, /^#[0-9a-f]{6}$/i.test(c.theme.primary), "Choose a six-digit hexadecimal primary colour.");
   check(4, /^#[0-9a-f]{6}$/i.test(c.theme.accent), "Choose a six-digit hexadecimal accent colour.");
   return [...new Set(errors.filter(e => step === undefined || e.step === step).map(e => e.message))];
@@ -191,14 +193,12 @@ export class PlaygroundSession implements BookingAdapter {
     if (date < today || date > addDays(today, 14)) return [];
     const service = c.services.find(x => x.id === serviceId);
     if (!service || !service.locationIds.includes(c.location.id)) return [];
-    const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
-    if (!c.days.includes(weekday)) return [];
-    return availableSlots({ service, staffId, staffIds: c.staff.filter(p => p.locationIds.includes(c.location.id)).map(p => p.id),
-      opens: c.opens, closes: c.closes, interval: 15, earliest: this.clock() + 120 * 60_000,
+    return dayPeriods(c.hours, date).flatMap(period => availableSlots({ service, staffId, staffIds: c.staff.filter(p => p.locationIds.includes(c.location.id)).map(p => p.id),
+      opens: period.opens, closes: period.closes, interval: c.startInterval, earliest: this.clock() + 120 * 60_000,
       instant: dayClock(date, c.business.timezone), occupied: [
         ...s.appointments.map(a => ({ staffId: a.staffId, start: a.start, end: a.end })),
         ...simulatedCalendar(s.calendar).busyIntervals(),
-      ] });
+      ] }));
   }
   book(date: string, serviceId: string, minute: number, staffId: string): string | null {
     if (!this.touch()) return "Session expired. Start again.";

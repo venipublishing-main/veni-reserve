@@ -1,3 +1,5 @@
+import { HoursEditor } from "./hours-editor";
+import { LocationEditor } from "./location-editor";
 import { useState } from "react";
 import type { Configuration } from "./session";
 import { TimezoneChoice } from "./timezone";
@@ -14,13 +16,12 @@ export function ConfigurationEditor({ config: c, step, update, upload, timezoneL
   const [loading, setLoading] = useState(false);
   const service = (index: number, patch: Partial<Configuration["services"][number]>) => update({ ...c,
     services: c.services.map((s, i) => i === index ? { ...s, ...patch } : s) });
-  const time = (n: number) => Number.isFinite(n) ? `${String(Math.floor(n / 60)).padStart(2, "0")}:${String(n % 60).padStart(2, "0")}` : "";
-  const minutes = (s: string) => s ? Number(s.slice(0, 2)) * 60 + Number(s.slice(3)) : NaN;
   return <div className="space-y-5">
     {step === 0 && <>
       <p className="text-sm text-slate-600">Start with your idea. Use fictional or proposed business details, never private customer data.</p>
       <label className="block font-medium">Business name<input className={inputClass} autoComplete="off" maxLength={100} value={c.business.name} onChange={e => update({ ...c, business: { ...c.business, name: e.target.value } })} /></label>
       <label className="block font-medium">Location name<input className={inputClass} autoComplete="off" maxLength={100} value={c.location.name} onChange={e => update({ ...c, location: { ...c.location, name: e.target.value } })} /></label>
+      <LocationEditor config={c} update={update} locked={timezoneLocked} />
       <TimezoneChoice value={c.business.timezone} locked={timezoneLocked} onChange={timezone => update({ ...c, business: { ...c.business, timezone } })} />
       <label className="block font-medium">Business category <span className="text-slate-500">(optional)</span><input className={inputClass} autoComplete="off" maxLength={60} value={c.business.category} onChange={e => update({ ...c, business: { ...c.business, category: e.target.value } })} /></label>
     </>}
@@ -58,11 +59,7 @@ export function ConfigurationEditor({ config: c, step, update, upload, timezoneL
         {c.staff.map((p, j) => <label className="mr-5 inline-flex items-center gap-2 py-2" key={p.id}><input type="checkbox" checked={s.eligibleStaffIds.includes(p.id)} onChange={e => service(i, { eligibleStaffIds: e.target.checked ? [...s.eligibleStaffIds, p.id] : s.eligibleStaffIds.filter(id => id !== p.id) })} />{p.name || `Bookable person ${j + 1} (name required)`}</label>)}
       </fieldset>)}
     </>}
-    {step === 3 && <>
-      <fieldset><legend className="font-semibold">Operating days</legend><div className="mt-3 flex flex-wrap gap-3">{["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day, i) => <label key={day} className="rounded-xl border border-slate-200 px-3 py-3"><input className="mr-2" type="checkbox" checked={c.days.includes(i)} onChange={e => update({ ...c, days: e.target.checked ? [...c.days, i] : c.days.filter(d => d !== i) })} />{day}</label>)}</div></fieldset>
-      <div className="grid gap-4 sm:grid-cols-2"><label>Opening time<input className={inputClass} type="time" value={time(c.opens)} onChange={e => update({ ...c, opens: minutes(e.target.value) })} /></label><label>Closing time<input className={inputClass} type="time" value={time(c.closes)} onChange={e => update({ ...c, closes: minutes(e.target.value) })} /></label></div>
-      <p className="rounded-xl bg-teal-50 p-4 text-sm leading-6">Defaults: 15-minute slot grid · 2-hour minimum notice · next 14 days · one location · all eligible staff share these hours. Overnight hours are not supported. Ambiguous or skipped clock-change times are unavailable.</p>
-    </>}
+    {step === 3 && <HoursEditor config={c} update={update} />}
     {step === 4 && <>
       <p className="text-sm text-slate-600">Give your idea a look. Your logo stays in this tab; nothing is uploaded.</p>
       <label className="block font-medium">Primary colour<input className="mt-2 block h-12 w-24 cursor-pointer" type="color" value={c.theme.primary} onChange={e => update({ ...c, theme: { ...c.theme, primary: e.target.value } })} /></label>

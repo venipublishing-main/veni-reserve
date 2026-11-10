@@ -76,7 +76,7 @@ describe("playground configuration and shared product screens", () => {
   });
   it("rejects invalid durations, hours, names, prices and zones", () => {
     const c = setup(); c.services[0].durationMinutes = NaN; c.services[0].price = "-10";
-    c.business.name = "<script>"; c.business.timezone = "Invented/Zone"; c.opens = c.closes;
+    c.business.name = "<script>"; c.business.timezone = "Invented/Zone"; c.hours[1] = [{ opens: 540, closes: 540 }];
     expect(configurationErrors(c).length).toBeGreaterThanOrEqual(5);
   });
   it("preserves VVB identities and read-only defaults in the shared components", () => {

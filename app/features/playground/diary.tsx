@@ -1,3 +1,4 @@
+import { dayPeriods } from "./scheduling";
 import { useState, useSyncExternalStore } from "react";
 import { ReceptionExperience } from "../booking/reception-experience";
 import { bookingTheme } from "../booking/theme";
@@ -31,10 +32,13 @@ export function diaryBlocks(state: SessionState, date: string): DiaryBlock[] {
       if (to > from) blocks.push({ id: "external-busy", staffId: busy.staffId, start: from, end: to, kind: "busy", label: "Simulated external busy", conflict: false });
     }
   }
-  const open = c.days.includes(new Date(`${date}T12:00:00Z`).getUTCDay());
+  const periods = dayPeriods(c.hours, date);
   for (const person of c.staff) {
-    const intervals = open ? [[0, c.opens], [c.closes, 1440]] : [[0, 1440]];
-    for (const [start, end] of intervals) if (end > start) blocks.push({ id: `closed-${person.id}-${start}`, staffId: person.id, start, end, kind: "closed", label: "Closed", conflict: false });
+    let cursor = 0;
+    for (const p of [...periods, { opens: 1440, closes: 1440 }]) {
+      if (p.opens > cursor) blocks.push({ id: `closed-${person.id}-${cursor}`, staffId: person.id, start: cursor, end: p.opens, kind: "closed", label: "Closed", conflict: false });
+      cursor = p.closes;
+    }
   }
   return blocks.map(b => ({ ...b, conflict: b.kind !== "closed" && blocks.some(other => other.id !== b.id && overlaps(b, other)) }));
 }

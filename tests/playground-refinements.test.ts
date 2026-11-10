@@ -134,8 +134,8 @@ describe("diary projection, conflicts and shared dates", () => {
   });
   it("retains booked blocks when hours shrink or the day closes", () => {
     const s = active(); s.book(date, "service-1", 540, "staff-1"); const c = structuredClone(s.getSnapshot().config);
-    c.opens = 600; s.update(c); expect(diaryBlocks(s.getSnapshot(), date).find(b => b.kind === "appointment")?.conflict).toBe(true);
-    c.days = [1]; s.update(c); const blocks = diaryBlocks(s.getSnapshot(), date);
+    c.hours[3][0].opens = 600; s.update(c); expect(diaryBlocks(s.getSnapshot(), date).find(b => b.kind === "appointment")?.conflict).toBe(true);
+    c.hours[3] = []; s.update(c); const blocks = diaryBlocks(s.getSnapshot(), date);
     expect(blocks.find(b => b.kind === "closed")).toMatchObject({ start: 0, end: 1440 });
     expect(blocks.find(b => b.kind === "buffer")).toMatchObject({ start: 570, end: 585 });
   });
