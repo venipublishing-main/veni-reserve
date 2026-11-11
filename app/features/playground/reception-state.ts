@@ -38,3 +38,16 @@ export class DetailPreviewController {
 export function clampPosition(point: { x: number; y: number }, viewport: { width: number; height: number }, size: { width: number; height: number }) {
   return { x: Math.max(12, Math.min(point.x, viewport.width - size.width - 12)), y: Math.max(12, Math.min(point.y, viewport.height - size.height - 12)) };
 }
+
+/** Pointer identity and offset survive rerenders; cancellation cannot continue a stale drag. */
+export class DialogDrag {
+  private active: { id: number; x: number; y: number } | null = null;
+  start(id: number, pointer: { x: number; y: number }, origin: { x: number; y: number }) {
+    this.active = { id, x: pointer.x - origin.x, y: pointer.y - origin.y };
+  }
+  move(id: number, pointer: { x: number; y: number }, viewport: { width: number; height: number }, size: { width: number; height: number }) {
+    if (!this.active || this.active.id !== id) return null;
+    return clampPosition({ x: pointer.x - this.active.x, y: pointer.y - this.active.y }, viewport, size);
+  }
+  stop() { this.active = null; }
+}

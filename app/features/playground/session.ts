@@ -12,7 +12,7 @@ export const SESSION_POLICY = { inactivityMs: 60 * 60_000, warningMs: 5 * 60_000
 export const WORKSPACE_ROLES = ["Owner", "Admin", "Reception", "Staff"] as const;
 export type TeamPerson = { id: string; name: string; roles: (typeof WORKSPACE_ROLES)[number][] };
 export type Configuration = {
-  business: { name: string; category: string; timezone: string };
+  business: { name: string; category: string; timezone: string; timezoneSource?: "locality" | "manual" };
   location: { id: string; name: string; address: string; localityId: string };
   // Local person/role metadata is not a User or Membership. Only the linked
   // staff subset accepts bookings; role selection never grants bookability.

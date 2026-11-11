@@ -2,7 +2,6 @@ import { HoursEditor } from "./hours-editor";
 import { LocationEditor } from "./location-editor";
 import { useState } from "react";
 import type { Configuration } from "./session";
-import { TimezoneChoice } from "./timezone";
 import { configurationErrors, editPerson, WORKSPACE_ROLES } from "./session";
 
 export const setupSteps = ["Business", "Services", "People", "Scheduling", "Branding"];
@@ -22,7 +21,6 @@ export function ConfigurationEditor({ config: c, step, update, upload, timezoneL
       <label className="block font-medium">Business name<input className={inputClass} autoComplete="off" maxLength={100} value={c.business.name} onChange={e => update({ ...c, business: { ...c.business, name: e.target.value } })} /></label>
       <label className="block font-medium">Location name<input className={inputClass} autoComplete="off" maxLength={100} value={c.location.name} onChange={e => update({ ...c, location: { ...c.location, name: e.target.value } })} /></label>
       <LocationEditor config={c} update={update} locked={timezoneLocked} />
-      <TimezoneChoice value={c.business.timezone} locked={timezoneLocked} onChange={timezone => update({ ...c, business: { ...c.business, timezone } })} />
       <label className="block font-medium">Business category <span className="text-slate-500">(optional)</span><input className={inputClass} autoComplete="off" maxLength={60} value={c.business.category} onChange={e => update({ ...c, business: { ...c.business, category: e.target.value } })} /></label>
     </>}
     {step === 1 && <>

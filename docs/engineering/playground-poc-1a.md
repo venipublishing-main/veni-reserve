@@ -225,10 +225,11 @@ changes. Per-person/date-specific overrides remain outside this slice.
 ### Offline locality boundary and sources
 
 `LocalityProvider` isolates catalogue search/selected-identity resolution from
-`timezoneRecommendation`; optional address text is stored separately and is never
-submitted or parsed for location inference. Selection alone does not change any
-timezone. The visitor explicitly confirms a recommendation, or keeps a manual
-choice. The session's appointment/busy lock applies equally to recommendations.
+`selectLocality`; the primary address/locality text remains local and is never
+submitted or parsed as a verified address. Selecting a known result applies its
+timezone when no manual override exists. Manual selection is collapsed by default;
+explicit overrides (including older values without provenance) remain unchanged.
+Timezone provenance is memory-only configuration and is included in baseline reset. The session's appointment/busy lock applies equally to recommendations.
 Unknown/ambiguous searches require selection/manual timezone, never a guessed match.
 A future authorized geocoding adapter may supply selected-place identities through
 this boundary; async transport, credentials, consent and lifecycle cancellation
@@ -275,9 +276,10 @@ are revalidated at submission. Configuration changes request a fresh composer;
 there is no automatic privileged override. Synthetic visitor labels are generated.
 
 Native modal dialogs provide focus containment and Escape dismissal, with focus
-restored to the trigger or New booking fallback after removal. Desktop composer
-headers support pointer dragging and arrow-key moves; dock-left/right/recentre
-buttons do not require dragging. Bounds recalculate on resize/content changes.
+restored to the trigger or New booking fallback after removal. Both composer and
+pinned details headers support pointer dragging and arrow-key moves above 1024px
+with a fine pointer; dock-left/right/recentre/reset-position buttons do not require
+dragging. Touch and tablet use a stable bottom dialog. Bounds recalculate on resize/content changes.
 Mobile uses a fixed bottom dialog, with scrolling only inside long forms/details.
 This is window movement, never appointment rescheduling.
 
@@ -320,7 +322,7 @@ The following remain pending owner browser acceptance:
   starts 09:07,09:27,...,11:27 then 13:07 onward; no 11:47 or 16:47; Thursday
   cannot fit the service. Try interval 7, 5 and invalid custom fractions/zero.
   Copy Wednesday to selected weekdays, then edit one copy and check independence.
-- [ ] Search Pretoria and select South Africa; confirm its recommendation explicitly.
+- [ ] Type Pretoria and select its match; verify the timezone populates without a second confirmation.
   Choose another timezone manually, change city/address and verify it is preserved.
   Test unknown/country-only searches and direct fallback. Book or connect busy time
   and verify neither a recommendation nor address edit bypasses the timezone lock.
@@ -347,3 +349,50 @@ The following remain pending owner browser acceptance:
 
 Screenshots and measured layout evidence are pending; this revision does not
 claim visual acceptance. No hosted change, merge, deployment or paid resource.
+
+
+## Owner polish pass: locality, Day and dialog movement (11 November 2026)
+
+- Primary location field: **Business address, city or locality**. Matching offline
+  results are labelled buttons. Only selection applies the recommendation; typing
+  alone never infers an arbitrary address. **Change manually** is collapsed, and
+  returning to the locality suggestion requires an explicit action after override.
+- Day keeps proportional working-span geometry and the shared adapter. Each person
+  has a distinct teal/blue/rose family, labelled independently of colour. Scheduled
+  cards use tinted surfaces, a strong leading edge and subtle elevation; buffers
+  use the same family with softer dashed styling. Busy stays violet/double-bordered.
+  Red stripes, an inset red edge and CONFLICT labels distinguish clashes even in
+  tiny strips. Free regions have dashed boundaries and explicit New booking actions.
+- Dialog correction: pinned details previously did not enable movement. Both pinned
+  details and composer now enable it. Native inset constraints are explicitly reset;
+  desktop left/top are authoritative. Pointer identity, offset, cancellation and
+  lost-capture cleanup are explicit. Resize stops an active drag and clamps position.
+  No assertion is made that this alone explains every owner-observed browser issue.
+- No availability, adapter, persistence or VVB route changes. No new dependencies.
+
+Validation: typecheck, lint, 187 tests in nine files and build passed before final
+review. Tests exercise suggestion/override/lock states, pointer deltas and bounds,
+release/cancellation state, movement controls and conflict presentation semantics.
+These are code/SSR results, not browser interaction or visual-fit evidence.
+
+### Focused owner acceptance (pending; browser controls not retried)
+
+- [ ] At 1366x768 and 1440x900, type Pretoria, select the result and verify automatic
+  Africa/Johannesburg. Change manually to another zone; choose another locality and
+  confirm the override stays. Unknown addresses show fallback, not verification.
+- [ ] Populate three fictional people and bookings. Check all working hours remain
+  visible, service/time/visitor/status readability, lane identity, softer buffers,
+  distinct busy periods and obvious red-striped overlaps. Inspect tiny/dense items
+  through counts/details; they must never disappear. Capture screenshots.
+- [ ] Click free time and complete a booking; confirm immediate Day/Agenda/public
+  availability updates. Check retained/out-of-hours exceptions and closed days.
+- [ ] Drag both the composer and pinned-details header on desktop, including text
+  within the header. Verify visible movement, edges clamped, no movement after
+  release, close-button behaviour, arrow keys, dock/recentre/reset, resize and Escape.
+- [ ] At tablet 768x1024 and mobile 390x844, verify the dialog stays fixed while
+  forms scroll; no drag is required. Check focus return and click/hover details.
+- [ ] Reset or expire with a popup open; confirm closure and stale submission denial.
+  Recheck both VVB demo routes, keyboard access and browser console.
+
+Manual dragging, responsive screenshots, readable board density and console checks
+remain **NOT VERIFIED**. Do not equate the automated results with visual acceptance.

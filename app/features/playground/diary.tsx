@@ -8,13 +8,12 @@ import { diaryBlocks, diaryColumns, workingSpan, exceptionBlocks, unoccupiedPeri
 import type { DiaryBlock } from "./diary-projection";
 import { ReceptionComposer } from "./reception-composer";
 import type { ComposerSeed } from "./reception-composer";
+import { laneFamily, blockPresentation } from "./day-presentation";
 import { ReceptionDialog } from "./reception-dialog";
 import { DetailPreviewController } from "./reception-state";
 import type { DetailsMode } from "./reception-state";
 export { diaryBlocks, diaryColumns } from "./diary-projection";
 
-const tones = { appointment: "border-[var(--booking-primary)] bg-[var(--booking-primary)] text-[var(--booking-on-primary)]", buffer: "border-dashed border-amber-800 bg-amber-50 text-amber-950",
-  busy: "border-double border-violet-800 bg-violet-100 text-violet-950", closed: "border-slate-300 bg-slate-200 text-slate-700" };
 const button = "rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900";
 export function PlaygroundDiary({ session, today }: { session: PlaygroundSession; today: string }) {
   const state = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot);
@@ -102,36 +101,36 @@ export function PlaygroundDiary({ session, today }: { session: PlaygroundSession
       <span>{c.business.name} / {c.business.timezone}</span>
       <label>Details: <select aria-label="Details preference" className="rounded border bg-white p-1" value={mode} onChange={e => { const mode = e.target.value as DetailsMode; setMode(mode); controller.preference(mode); }}><option value="click">Click</option><option value="hover">Hover</option></select></label>
       {exceptions.length > 0 && <button className="rounded-lg border border-amber-700 bg-amber-50 px-2 py-1 font-semibold text-amber-950" onClick={e => openDetails(exceptions.map(b => b.id), e.currentTarget)}>Exceptions: {exceptions.length} occupied items (retained / out of hours)</button>}
-      <details className="relative"><summary className="cursor-pointer">Legend & timezone</summary><div className="absolute right-0 z-10 mt-1 w-72 max-w-[calc(100vw-24px)] rounded-xl border bg-white p-3 shadow-lg">{zoneDatePreview(c.business.timezone, date)}. Solid = scheduled; dashed amber = buffer; double violet = simulated busy; grey = closed. Empty space is only a candidate until a service is validated. All people inherit weekday hours.</div></details>
+      <details className="relative"><summary className="cursor-pointer">Legend & timezone</summary><div className="absolute right-0 z-10 mt-1 w-72 max-w-[calc(100vw-24px)] rounded-xl border bg-white p-3 shadow-lg">{zoneDatePreview(c.business.timezone, date)}. Lane colours identify people. Solid = scheduled; softer dashed = buffer; red stripes / ! = conflict; double violet = simulated busy; grey = closed. Empty space is only a candidate until a service is validated. All people inherit weekday hours.</div></details>
     </div>
     {message && <p role="status" className="mt-1 text-xs">{message}</p>}
     {view === "day" && <>
       <label className="mt-2 text-sm md:hidden">Person <select className="rounded-lg border bg-white p-2" value={selectedPerson} onChange={e => setPerson(e.target.value)}>{c.staff.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
       {!span ? <div className="flex flex-1 items-center justify-center rounded-xl bg-slate-50 p-5 text-center"><p>Closed on this day. Check exceptions for retained appointments, or choose another date.</p></div> : <div className="reception-board mt-3 grid min-h-0 flex-1" style={{ gridTemplateColumns: `48px repeat(${Math.max(c.staff.length, 1)}, minmax(0, 1fr))`, gridTemplateRows: "44px minmax(0, 1fr)" }}>
-        <div className="text-xs text-slate-500">Time</div>{c.staff.map(p => {
+        <div className="text-xs text-slate-500">Time</div>{c.staff.map((p, personIndex) => {
           const items = blocks.filter(b => b.staffId === p.id && b.kind !== "closed" && b.end > span.start && b.start < span.end);
-          return <div key={p.id} data-selected={p.id === selectedPerson} className="board-person flex min-w-0 flex-col justify-center border-l px-2 text-sm"><strong className="truncate">{p.name}</strong>
+          return <div key={p.id} data-selected={p.id === selectedPerson} data-family={laneFamily(personIndex)} className="board-person reception-person-heading flex min-w-0 flex-col justify-center border-l px-2 text-sm"><strong className="truncate">{p.name}</strong>
             <button className="truncate text-left text-xs underline" onClick={e => openDetails(items.map(b => b.id), e.currentTarget)} disabled={!items.length}>{items.length} occupied items / exact details (includes compact blocks)</button></div>;
         })}
         <div ref={board} className="relative mb-3 mt-2">{boardTicks(span.start, span.end).map(t => <span key={t} className="absolute -translate-y-1/2 text-[11px] text-slate-500" style={{ top: `${(t - span.start) / (span.end - span.start) * 100}%` }}>{minutesLabel(t)}</span>)}</div>
-        {c.staff.map(p => {
+        {c.staff.map((p, personIndex) => {
           const percent = (n: number) => (n - span.start) / (span.end - span.start) * 100;
           const items = blocks.filter(b => b.staffId === p.id && b.end > span.start && b.start < span.end);
-          return <div key={p.id} data-selected={p.id === selectedPerson} className="board-person relative mb-3 mt-2 min-h-0 border-l border-slate-200" aria-label={`${p.name} day lane`}>
-            {unoccupiedPeriods(state, date, p.id, blocks).map(gap => <button key={`free-${gap.start}`} className="absolute inset-x-0 overflow-hidden border-y border-dotted border-slate-200 bg-white text-left text-xs text-slate-500 hover:bg-slate-100 focus:z-10 focus:outline-2 focus:outline-slate-800"
+          return <div key={p.id} data-selected={p.id === selectedPerson} data-family={laneFamily(personIndex)} className="board-person reception-person-lane relative mb-3 mt-2 min-h-0 border-l border-slate-200" aria-label={`${p.name} day lane`}>
+            {unoccupiedPeriods(state, date, p.id, blocks).map(gap => <button key={`free-${gap.start}`} className="reception-free absolute inset-x-0 overflow-hidden text-left text-xs focus:z-10 focus:outline-2 focus:outline-slate-800"
               aria-label={`New booking candidate for ${p.name}, ${minutesLabel(gap.start)} to ${minutesLabel(gap.end)}. Choose a service to check availability.`}
               style={{ top: `${percent(gap.start)}%`, height: `${(gap.end - gap.start) / (span.end - span.start) * 100}%` }}
               onClick={e => { const box = e.currentTarget.getBoundingClientRect(); const raw = e.detail === 0 ? gap.start : gap.start + Math.max(0, Math.min(0.999, (e.clientY - box.top) / box.height)) * (gap.end - gap.start); openComposer(e.currentTarget, p.id, candidateMinute(state, date, Math.floor(raw))); }}>
-              {(gap.end - gap.start) / (span.end - span.start) * height >= 28 && <span className="px-2">+ Unoccupied</span>}
+              {(gap.end - gap.start) / (span.end - span.start) * height >= 28 && <span className="px-2">+ New booking</span>}
             </button>)}
             {items.filter(b => b.kind === "closed").map(b => <button key={b.id} className="absolute inset-x-0 overflow-hidden border-y border-dashed border-slate-400 bg-slate-200 text-xs text-slate-700" style={{ top: `${percent(Math.max(b.start, span.start))}%`, height: `${(Math.min(b.end, span.end) - Math.max(b.start, span.start)) / (span.end - span.start) * 100}%` }} aria-label={blockLabel(b)} onClick={e => openDetails([b.id], e.currentTarget)}>Closed</button>)}
             {diaryColumns(items).map(({ block: b, column, columns }) => {
               const pixels = (Math.min(b.end, span.end) - Math.max(b.start, span.start)) / (span.end - span.start) * height;
               return <button key={b.id} type="button" {...previewEvents([b.id])} aria-describedby={visiblePreview?.includes(b.id) ? "reception-preview" : undefined}
-                className={`absolute overflow-hidden rounded-md border px-1 text-left text-xs focus:z-10 focus:outline-2 focus:outline-offset-1 focus:outline-slate-950 ${tones[b.kind]}`}
+                data-conflict={b.conflict || undefined} className={`absolute overflow-hidden rounded-lg border px-2 text-left text-xs focus:z-10 focus:outline-2 focus:outline-offset-1 focus:outline-slate-950 ${blockPresentation(b.kind, b.conflict)}`}
                 aria-label={`${blockLabel(b)}. Open pinned details.`} onClick={e => openDetails([b.id], e.currentTarget)}
                 style={{ borderWidth: pixels < 6 ? 0 : 1, top: `${percent(Math.max(b.start, span.start))}%`, height: `${(Math.min(b.end, span.end) - Math.max(b.start, span.start)) / (span.end - span.start) * 100}%`, left: `${column * 100 / columns}%`, width: `${100 / columns}%` }}>
-                {pixels >= 26 ? <span className="block leading-3">{b.conflict ? "! " : ""}{minutesLabel(b.start)}-{minutesLabel(b.end)} {b.kind === "appointment" ? "Scheduled" : b.kind}<br />{b.summary ?? b.label}</span> : pixels >= 14 ? <span className="whitespace-nowrap">{b.conflict ? "! " : ""}{minutesLabel(b.start)} {b.kind === "appointment" ? "Scheduled" : b.kind} {b.summary ?? b.label}</span> : null}
+                {pixels >= 26 ? <span className="block leading-3">{b.conflict ? "! CONFLICT / " : ""}{minutesLabel(b.start)}-{minutesLabel(b.end)} {b.kind === "appointment" ? "Scheduled" : b.kind}<br />{b.summary ?? b.label}</span> : pixels >= 14 ? <span className="whitespace-nowrap">{b.conflict ? "! CONFLICT / " : ""}{minutesLabel(b.start)} {b.kind === "appointment" ? "Scheduled" : b.kind} {b.summary ?? b.label}</span> : null}
               </button>;
             })}
           </div>;
@@ -148,7 +147,7 @@ export function PlaygroundDiary({ session, today }: { session: PlaygroundSession
         if (previewOpener.current?.isConnected) { suppressRestoredFocus.current = true; previewOpener.current.focus({ preventScroll: true }); }
       })}>Dismiss</button></div>
     </aside>}
-    {details && <ReceptionDialog title="Occupied time details" returnFocus={opener.current} onClose={() => setDetails(null)}>{detailItems(details, true)}{!details.some(id => blocks.some(b => b.id === id)) && <p>No occupied items remain.</p>}</ReceptionDialog>}
+    {details && <ReceptionDialog movable title="Occupied time details" returnFocus={opener.current} onClose={() => setDetails(null)}>{detailItems(details, true)}{!details.some(id => blocks.some(b => b.id === id)) && <p>No occupied items remain.</p>}</ReceptionDialog>}
     {composer && <ReceptionComposer session={session} seed={composer} returnFocus={opener.current} onClose={() => { setComposer(null); setMessage("Booking composer closed."); }} />}
   </section>;
 }

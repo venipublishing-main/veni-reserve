@@ -40,3 +40,30 @@ body {
   .reception-dialog { top: auto !important; left: 12px !important; bottom: 12px; width: calc(100vw - 24px); }
   .reception-drag-handle { cursor: auto; touch-action: auto; }
 }
+
+/* Lane identity is supplemental to names; conflict stripes override every family. */
+.board-person[data-family="teal"] { --lane-ink: #134e4a; --lane-soft: #ccfbf1; --lane-faint: #f0fdfa; --lane-line: #0f766e; }
+.board-person[data-family="blue"] { --lane-ink: #1e3a8a; --lane-soft: #dbeafe; --lane-faint: #eff6ff; --lane-line: #1d4ed8; }
+.board-person[data-family="rose"] { --lane-ink: #881337; --lane-soft: #ffe4e6; --lane-faint: #fff1f2; --lane-line: #be123c; }
+.reception-person-heading { background: var(--lane-soft); color: var(--lane-ink); border-top: 3px solid var(--lane-line); border-radius: 12px 12px 0 0; }
+.reception-person-lane { background: var(--lane-faint); }
+.reception-free { background: var(--lane-faint); color: var(--lane-ink); border: 1px dashed var(--lane-line); border-radius: 10px; transition: background 120ms; }
+.reception-free:hover, .reception-free:focus-visible { background: var(--lane-soft); box-shadow: inset 0 0 0 2px var(--lane-line); }
+.reception-block { border-color: var(--lane-line); color: var(--lane-ink); box-shadow: inset 3px 0 var(--lane-line), 0 1px 3px rgb(15 23 42 / 0.15); }
+.reception-block:hover, .reception-block:focus-visible { z-index: 10; outline: 2px solid var(--lane-ink); outline-offset: -2px; }
+.reception-block-appointment { background: var(--lane-soft); font-weight: 600; }
+.reception-block-buffer { background: var(--lane-faint); border-style: dashed; box-shadow: inset 3px 0 var(--lane-line); }
+.reception-block-busy { background: #ede9fe; color: #4c1d95; border: 3px double #6d28d9; box-shadow: inset 3px 0 #6d28d9; }
+.reception-block-conflict { color: #7f1d1d; border-color: #b91c1c; background: repeating-linear-gradient(135deg, #fee2e2 0 8px, #fecaca 8px 12px); box-shadow: inset 4px 0 #b91c1c, inset 0 0 0 2px #b91c1c; font-weight: 700; }
+/* Neutralize native dialog inset constraints so left/top are the sole desktop origin. */
+.reception-dialog { inset: auto; }
+.reception-drag-handle { user-select: none; }
+.reception-position-controls, .reception-drag-hint { display: none; }
+@media (min-width: 1025px) and (any-pointer: fine) {
+  .reception-position-controls { display: flex; flex-wrap: wrap; }
+  .reception-drag-hint { display: block; }
+}
+@media (max-width: 1024px), (pointer: coarse) {
+  .reception-dialog { top: auto !important; left: max(12px, calc((100vw - 460px) / 2)) !important; bottom: 12px; }
+  .reception-drag-handle { cursor: auto; touch-action: auto; }
+}

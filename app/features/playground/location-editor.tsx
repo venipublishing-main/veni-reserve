@@ -1,21 +1,31 @@
-import { useState } from "react";
-import { offlineLocalities, timezoneRecommendation } from "./localities";
+﻿import { useState } from "react";
+import { offlineLocalities } from "./localities";
+import { selectLocality } from "./location-state";
+import { TimezoneChoice } from "./timezone";
 import type { Configuration } from "./session";
 
 export function LocationEditor({ config: c, update, locked }: { config: Configuration; update: (c: Configuration) => void; locked: boolean }) {
-  const [query, setQuery] = useState("");
-  const matches = offlineLocalities.search(query), selected = offlineLocalities.resolve(c.location.localityId);
-  const recommendation = timezoneRecommendation(offlineLocalities, c.location.localityId);
-  return <fieldset className="space-y-3 rounded-xl bg-slate-50 p-4"><legend className="font-semibold">City / country (optional offline suggestion)</legend>
-    <label className="block">Find a locality<input type="search" className="mt-1 block w-full rounded border p-2" placeholder="For example, Pretoria or South Africa" value={query} onChange={e => setQuery(e.target.value)} /></label>
-    <label className="block">Explicitly select a locality<select className="mt-1 block w-full rounded border bg-white p-2" value={c.location.localityId} onChange={e => update({ ...c, location: { ...c.location, localityId: e.target.value } })}>
-      <option value="">Manual timezone / no selected locality</option>
-      {[...new Map([...(selected ? [selected] : []), ...matches].map(p => [p.id, p])).values()].map(p => <option key={p.id} value={p.id}>{p.city}, {p.country}</option>)}
-    </select></label>
-    {!matches.length && <p className="text-sm">No catalogue match. Use the direct timezone selector below; no location has been inferred.</p>}
-    {selected && recommendation && <p className="text-sm">{selected.city} recommends {recommendation}. Your existing timezone stays unchanged until you confirm. <button type="button" className="font-semibold underline" disabled={locked} onClick={() => update({ ...c, business: { ...c.business, timezone: recommendation } })}>Use this timezone</button> · <a href={selected.source} target="_blank" rel="noreferrer" className="underline">GeoNames source</a></p>}
-    {locked && <p className="text-sm">Timezone is locked while appointments or simulated busy time remain.</p>}
-    <label className="block">Street address (optional, local text only)<input className="mt-1 block w-full rounded border p-2" maxLength={250} autoComplete="off" value={c.location.address} onChange={e => update({ ...c, location: { ...c.location, address: e.target.value } })} /></label>
-    <p className="text-xs text-slate-600">Limited offline coverage: Pretoria, Johannesburg, Cape Town and Durban, South Africa. Select a result explicitly; ambiguous or unknown places need manual choice. No online address verification, geocoding or external address submission. GeoNames data: CC BY 4.0.</p>
+  const [searching, setSearching] = useState(false);
+  const selected = offlineLocalities.resolve(c.location.localityId);
+  const matches = offlineLocalities.search(c.location.address);
+  const manual = !!c.business.timezone && c.business.timezoneSource !== "locality";
+  return <fieldset className="space-y-3 rounded-2xl border border-slate-200 bg-white p-4"><legend className="px-2 font-semibold">Business location</legend>
+    <label className="block font-medium">Business address, city or locality<input type="search" className="mt-2 block w-full rounded-xl border border-slate-300 p-3" placeholder="Try Pretoria" maxLength={250} autoComplete="off" value={c.location.address}
+      onFocus={() => setSearching(true)} onChange={e => { setSearching(true); update({ ...c, location: { ...c.location, address: e.target.value, localityId: "" } }); }} /></label>
+    {searching && c.location.address.trim() && <div aria-label="Offline locality matches" className="space-y-1">
+      {matches.map(p => <button key={p.id} type="button" className="block w-full rounded-xl border border-slate-200 bg-slate-50 p-3 text-left hover:bg-slate-100 focus-visible:outline-2" onClick={() => { update(selectLocality(c, p.id, locked)); setSearching(false); }}>
+        <strong>{p.city}, {p.country}</strong><span className="block text-xs text-slate-600">Use this locality · {p.timezone}</span>
+      </button>)}
+      {!matches.length && <p className="text-sm text-slate-600">No offline match. Your address stays local; use Change manually below to choose its timezone.</p>}
+    </div>}
+    {selected && <p className="text-sm">{selected.city}, {selected.country} · <a className="underline" href={selected.source} target="_blank" rel="noreferrer">GeoNames source</a></p>}
+    <p className="text-sm font-medium">{manual ? "Manual timezone" : "Suggested timezone"}: {c.business.timezone || "Select a locality above"}</p>
+    {selected && manual && <p className="text-xs text-slate-600">Locality suggests {selected.timezone}; your manual choice is preserved.</p>}
+    <details><summary className="cursor-pointer text-sm underline">Change manually</summary><div className="mt-3">
+      <TimezoneChoice value={c.business.timezone} locked={locked} onChange={timezone => update({ ...c, business: { ...c.business, timezone, timezoneSource: "manual" } })} />
+      {selected && !locked && <button type="button" className="mt-2 text-sm underline" onClick={() => update({ ...c, business: { ...c.business, timezone: selected.timezone, timezoneSource: "locality" } })}>Use locality suggestion again</button>}
+    </div></details>
+    {locked && <p className="text-xs">Timezone is locked while appointments or simulated busy time remain.</p>}
+    <p className="text-xs text-slate-500">Offline matches: Pretoria, Johannesburg, Cape Town and Durban, South Africa. Select a match to apply its suggestion. Address text stays in this tab; no online address verification or external submission. GeoNames: CC BY 4.0.</p>
   </fieldset>;
 }
