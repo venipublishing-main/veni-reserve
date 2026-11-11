@@ -1,3 +1,4 @@
+import { locationSummary } from "../features/playground/location-label";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { BookingExperience } from "../features/booking/booking-experience";
 import { PlaygroundDiary } from "../features/playground/diary";
@@ -115,7 +116,7 @@ export default function Playground() {
           <div className="h-3" style={{ backgroundColor: colour, borderBottom: "4px solid var(--booking-accent)" }} /><div className="p-6">
             {c.theme.logoUrl && <img src={c.theme.logoUrl} alt="Your local business logo" className="mb-5 h-20 w-20 object-contain" />}
             <p className="text-xs uppercase tracking-widest text-slate-500">Your idea, taking shape</p><h2 className="mt-3 break-words text-2xl font-semibold">{c.business.name || "Your business name"}</h2>
-            <p className="mt-2 break-words text-slate-600">{c.location.name || "Your location"}</p><p className="mt-1 text-sm">{c.business.category}</p><p className="mt-2 text-xs text-slate-500">{c.business.timezone || "Timezone not selected"}</p>
+            {locationSummary(c) && <p className="mt-2 break-words text-slate-600">{locationSummary(c)}</p>}<p className="mt-1 text-sm">{c.business.category}</p><p className="mt-2 text-xs text-slate-500">{c.business.timezone || "Timezone not selected"}</p>
             <ul className="mt-6 space-y-3">{c.services.map((s, i) => <li key={s.id} className="rounded-xl border border-slate-200 p-3"><strong className="break-words">{s.name || `Name service ${i + 1}`}</strong><p className="text-sm text-slate-600">{Number.isFinite(s.durationMinutes) ? s.durationMinutes : "—"} min · {Number.isFinite(s.bufferAfterMinutes) ? s.bufferAfterMinutes : "—"} min buffer{s.price && ` · Price ${s.price}`}</p></li>)}</ul>
             <p className="mt-5 text-sm text-slate-600">Team: {c.people.map((p, i) => p.name || `Name person ${i + 1}`).join(", ")}</p>
           </div>
@@ -126,7 +127,7 @@ export default function Playground() {
       {active && state.view === "reception" && <PlaygroundDiary key={state.epoch} session={session} today={today} />}
       {active && errors.length === 0 && <>
         {state.view === "booking" && <BookingExperience key={`${state.epoch}-${state.configRevision}`} today={today} now={new Date().toISOString()}
-          business={{ name: c.business.name, descriptor: c.business.category, timezone: c.business.timezone, location: c.location.name, primary: colour, accent: c.theme.accent, logoUrl: c.theme.logoUrl, note: "Your temporary business. Synthetic bookings stay in this tab only." }}
+          business={{ name: c.business.name, descriptor: c.business.category, timezone: c.business.timezone, location: locationSummary(c), primary: colour, accent: c.theme.accent, logoUrl: c.theme.logoUrl, note: "Your temporary business. Synthetic bookings stay in this tab only." }}
           services={c.services} people={c.staff} slotsFor={(date, serviceId, staffId) => session.slots(date, serviceId, staffId)}
           onBook={(date, serviceId, slot) => session.book(date, serviceId, slot.startMinute, slot.staffId)} onWorkspace={() => session.view("reception")} />}
       </>}

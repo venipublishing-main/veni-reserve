@@ -35,16 +35,16 @@ body {
   .playground-reception > header h1 { font-size: 1rem; margin-top: 0; }
   .playground-reception > header button { padding: 0.35rem 0.6rem; font-size: 0.75rem; }
   .reception-shell > nav button { padding: 0.4rem 0.6rem; font-size: 0.75rem; }
-  .reception-board { grid-template-columns: 48px minmax(0, 1fr) !important; }
+  .time-tile-board { grid-template-columns: minmax(0, 1fr) !important; }
   .board-person[data-selected="false"] { display: none; }
   .reception-dialog { top: auto !important; left: 12px !important; bottom: 12px; width: calc(100vw - 24px); }
   .reception-drag-handle { cursor: auto; touch-action: auto; }
 }
 
 /* Lane identity is supplemental to names; conflict stripes override every family. */
-.board-person[data-family="teal"] { --lane-ink: #134e4a; --lane-soft: #ccfbf1; --lane-faint: #f0fdfa; --lane-line: #0f766e; }
-.board-person[data-family="blue"] { --lane-ink: #1e3a8a; --lane-soft: #dbeafe; --lane-faint: #eff6ff; --lane-line: #1d4ed8; }
-.board-person[data-family="rose"] { --lane-ink: #881337; --lane-soft: #ffe4e6; --lane-faint: #fff1f2; --lane-line: #be123c; }
+.board-person[data-family="teal"], .time-tile-grid[data-family="teal"] { --lane-ink: #134e4a; --lane-soft: #ccfbf1; --lane-faint: #f0fdfa; --lane-line: #0f766e; }
+.board-person[data-family="blue"], .time-tile-grid[data-family="blue"] { --lane-ink: #1e3a8a; --lane-soft: #dbeafe; --lane-faint: #eff6ff; --lane-line: #1d4ed8; }
+.board-person[data-family="rose"], .time-tile-grid[data-family="rose"] { --lane-ink: #881337; --lane-soft: #ffe4e6; --lane-faint: #fff1f2; --lane-line: #be123c; }
 .reception-person-heading { background: var(--lane-soft); color: var(--lane-ink); border-top: 3px solid var(--lane-line); border-radius: 12px 12px 0 0; }
 .reception-person-lane { background: var(--lane-faint); }
 .reception-free { background: var(--lane-faint); color: var(--lane-ink); border: 1px dashed var(--lane-line); border-radius: 10px; transition: background 120ms; }
@@ -67,3 +67,11 @@ body {
   .reception-dialog { top: auto !important; left: max(12px, calc((100vw - 460px) / 2)) !important; bottom: 12px; }
   .reception-drag-handle { cursor: auto; touch-action: auto; }
 }
+
+/* Reception now uses the customer time-button language, not proportional geometry. */
+.time-tile-grid { grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); align-content: start; }
+.time-person { background: var(--lane-faint); border-top: 3px solid var(--lane-line); }
+.time-person > header { color: var(--lane-ink); }
+.reception-time-tile { height: 52px; padding: 4px; overflow: hidden; }
+.reception-time-tile:disabled { background: #f1f5f9; color: #475569; border-style: dotted; cursor: not-allowed; }
+.time-tile-board { align-items: start; }

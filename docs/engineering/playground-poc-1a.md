@@ -396,3 +396,109 @@ These are code/SSR results, not browser interaction or visual-fit evidence.
 
 Manual dragging, responsive screenshots, readable board density and console checks
 remain **NOT VERIFIED**. Do not equate the automated results with visual acceptance.
+
+## Current Day: booking-style time tiles (PR comment 6788840040)
+
+This section supersedes the proportional Day presentation and its visual
+acceptance checklist above. The earlier timeline implementation notes are retained
+as history; the timeline is no longer rendered. Existing modal movement, person
+colours, locality automation, scheduling and memory-only session rules remain.
+
+### Location setup
+
+Business name and address/locality are primary. Branch / venue name is optional
+inside a collapsed disclosure with Main practice / Hatfield branch examples.
+An empty canonical `location.name` means fallback, not a saved inferred label.
+`locationLabel` safely resolves the current business name without changing Location
+ID or eligibility links. `locationSummary` omits the fallback/equal business name
+where the business heading already supplies it. An explicit branch stays explicit
+when the business changes. Baseline reset restores this distinction and timezone
+provenance. No multiple-location behaviour or remote address lookup was added.
+
+### Occupancy is distinct from bookability
+
+`timeButtonClass` is extracted unchanged from customer booking; customer/VVB actions
+and selection semantics remain unchanged. Day uses equal-height rounded buttons in
+left-to-right wrapping grids, one person panel per desktop column and a person
+selector below 768px. No vertical ruler, proportional bars or permanent details list.
+
+`timeTiles` projects each continuous weekday window at opening + n * startInterval.
+The final bucket clips to closing and never spans a break. Blocks retain their exact
+half-open intervals and identities. Appointment service time, post-service buffer
+and simulated busy can share a bucket without sharing actual time; that alone is
+not a conflict. Conflict flags require a real overlap within the particular tile.
+Long appointments cover several tiles but the panel count deduplicates appointment
+IDs. Every occupied tile routes to the same exact appointment/buffer details.
+
+Without a service selection, free tiles say Choose service. With a filter, bookable
+starts come directly from `session.slots` for the selected service/person/date;
+other starts say Not bookable. Existing bookings remain visible regardless of
+service eligibility. For a short valid start before later occupancy in the same
+bucket, details retain that occupancy and offer Check [time] start with a service.
+The same composer receives the date/person/time/service and revalidates submission.
+No display grouping grants capacity or changes notice, eligibility or buffer rules.
+
+Off-grid appointment starts, out-of-hours and removed-person bookings are exposed
+through the exception overlay, including closed days. In-progress labels use exact
+service instants and refresh locally; they do not mutate appointment status.
+
+### Density and interaction
+
+The board measures its available height and panel width to bound the overview.
+At excessive density (or many fragmented working periods), explicit range groups
+show start/booking counts and conflict/buffer/busy indicators. Each group retains
+ALL underlying exact starts in order; a movable range dialog exposes them, including
+break separators. Ordinary ungrouped grids show compact break separators. Opening
+an occupied item from a range closes that dialog and opens the existing details;
+free starts open the existing composer. Focus returns to the range trigger.
+Only overlays/Agenda scroll, not a vertical time ruler. This is an implementation
+strategy, not evidence of fit or readability in an actual browser.
+
+Date/configuration/service changes remount the range board. Session epoch changes
+on reset/expiry close range/detail/composer UI and invalidate stale drafts. Hover
+remains read-only; booking and cancellation require explicit actions. Existing
+pointer dragging, docking, Escape and focus restoration are preserved.
+
+### Regression evidence and replaced assertions
+
+All original 187 tests remain, with four obsolete presentation assertions updated:
+
+- Non-bookable-person exclusion now checks named time-tile panels instead of lanes.
+- Exact occupied/buffer boundaries now check configured tile starts rather than
+  proportional `top` / `height` CSS. Exact interval assertions remain unchanged.
+- Busy-overlap presentation checks explicit `data-conflict` rather than old tooltip
+  wording. Exact conflict/column-projection regressions remain unchanged.
+- Dense coverage checks one deduplicated booking plus range/conflict labels rather
+  than three separate occupied-block counts and the old lane label.
+
+New tests cover optional branch fallback/explicit preservation, eligibility IDs,
+reset provenance, split/non-round origins, partial buckets, scheduler agreement at
+six intervals, notice/horizon, ineligible filters, long bookings, mixed nonoverlapping
+occupancy, per-tile real conflicts, in-progress boundaries, action routing, retained
+exceptions, lossless dense grouping, many short periods, cancel/disconnect and stale
+reset/expiry drafts. Code/SSR tests are not browser or visual acceptance.
+
+### Focused owner acceptance — pending
+
+- [ ] Complete a single-site setup with only business name + locality/timezone and
+  the existing service/team settings; leave branch blank. Check no duplicate name
+  in booking summaries. Add Hatfield branch, rename business, then reset baseline.
+- [ ] At 1366x768 and 1440x900, capture Day with three fictional bookable people,
+  split hours and 20-minute starts from 09:07. Verify equal-height clickable times,
+  left-to-right order, complete working-day coverage and readable labels.
+- [ ] Switch service filter; compare Bookable start times with public availability.
+  Book from a candidate and inspect the same appointment via all covered tiles.
+  Verify exact buffer times, one appointment count and immediate cancellation updates.
+- [ ] Change interval after booking. Inspect retained off-grid exceptions. Add busy
+  overlap: real conflicts must be red; sequential events sharing one bucket must not.
+- [ ] Set one-minute starts: open range groups and verify every exact start, break,
+  booking/buffer/busy interval is accessible. Test group -> details/composer focus.
+- [ ] At 390x844 and 768x1024, check person selection where shown, stable touch dialogs,
+  no clipped times, keyboard navigation, hover/click details and console errors.
+- [ ] Drag/dock/recentre both desktop dialogs; reset or expire with a range/composer
+  open. Check stale submission rejection and both unchanged VVB demo routes.
+
+No browser automation was retried. Screenshots, fit/readability, actual focus and
+pointer interaction remain pending owner review. No visual PASS is claimed.
+
+Local validation for this revision: pinned typecheck, lint, all 215 tests across ten files, and build PASS. GitHub CI evidence is recorded on PR #10.

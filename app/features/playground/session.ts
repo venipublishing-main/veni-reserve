@@ -61,7 +61,8 @@ export function editPerson(c: Configuration, person: TeamPerson, bookable: boole
 export function configurationErrors(c: Configuration, step?: number): string[] {
   const errors: { step: number; message: string }[] = [];
   const check = (s: number, valid: boolean, message: string) => { if (!valid) errors.push({ step: s, message }); };
-  check(0, text(c.business.name) && text(c.location.name), "Name your business and location (up to 100 characters each).");
+  check(0, text(c.business.name), "Name your business (up to 100 characters).");
+  check(0, c.location.name === "" || text(c.location.name), "Keep the optional branch / venue name under 100 characters.");
   check(0, c.location.address === "" || text(c.location.address, 250), "Keep the optional address under 250 characters.");
   check(0, c.location.localityId === "" || !!offlineLocalities.resolve(c.location.localityId), "Choose a known locality or use manual timezone selection.");
   check(0, validTimezone(c.business.timezone), "Choose a valid business timezone.");

@@ -59,7 +59,8 @@ export function workingSpan(state: SessionState, date: string) {
 export function exceptionBlocks(state: SessionState, date: string, blocks = diaryBlocks(state, date)) {
   const periods = dayPeriods(state.config.hours, date);
   return blocks.filter(b => b.kind !== "closed" && (!state.config.staff.some(p => p.id === b.staffId) ||
-    !periods.some(p => b.start >= p.opens && b.end <= p.closes)));
+    !periods.some(p => b.start >= p.opens && b.end <= p.closes) ||
+    (b.appointmentId !== undefined && blocks.some(a => a.id === b.appointmentId && !periods.some(p => a.start >= p.opens && a.start < p.closes && (a.start - p.opens) % state.config.startInterval === 0)))));
 }
 /** Unoccupied gaps are candidates, never a service-specific availability promise. */
 export function unoccupiedPeriods(state: SessionState, date: string, staffId: string, blocks = diaryBlocks(state, date)) {

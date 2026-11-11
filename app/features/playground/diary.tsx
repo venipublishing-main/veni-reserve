@@ -4,11 +4,12 @@ import { bookingTheme } from "../booking/theme";
 import { addDays, minutesLabel } from "../demo/booking";
 import { zoneDatePreview } from "./timezone";
 import type { PlaygroundSession } from "./session";
-import { diaryBlocks, diaryColumns, workingSpan, exceptionBlocks, unoccupiedPeriods, candidateMinute, boardTicks } from "./diary-projection";
+import { diaryBlocks, workingSpan, exceptionBlocks } from "./diary-projection";
 import type { DiaryBlock } from "./diary-projection";
 import { ReceptionComposer } from "./reception-composer";
 import type { ComposerSeed } from "./reception-composer";
-import { laneFamily, blockPresentation } from "./day-presentation";
+import { TimeTileBoard } from "./time-tile-board";
+import { locationSummary } from "./location-label";
 import { ReceptionDialog } from "./reception-dialog";
 import { DetailPreviewController } from "./reception-state";
 import type { DetailsMode } from "./reception-state";
@@ -17,10 +18,12 @@ export { diaryBlocks, diaryColumns } from "./diary-projection";
 const button = "rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900";
 export function PlaygroundDiary({ session, today }: { session: PlaygroundSession; today: string }) {
   const state = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot);
+  const [serviceId, setServiceId] = useState("");
   const [view, setView] = useState<"day" | "agenda">("day");
   const [person, setPerson] = useState(state.config.staff[0]?.id ?? "");
   const [mode, setMode] = useState<DetailsMode>("click");
   const [preview, setPreview] = useState<string[] | null>(null);
+  const [detailCandidate, setDetailCandidate] = useState<{ staffId: string; minute: number } | null>(null);
   const [details, setDetails] = useState<string[] | null>(null);
   const [composer, setComposer] = useState<ComposerSeed | null>(null);
   const [message, setMessage] = useState("");
@@ -33,8 +36,8 @@ export function PlaygroundDiary({ session, today }: { session: PlaygroundSession
     if (ids) previewOpener.current = pendingPreviewOpener.current;
     setPreview(ids);
   }));
-  const board = useRef<HTMLDivElement>(null), [height, setHeight] = useState(360);
   const c = state.config, date = state.diaryDate, blocks = diaryBlocks(state, date), span = workingSpan(state, date);
+  const selectedService = c.services.some(s => s.id === serviceId) ? serviceId : "";
   const exceptions = exceptionBlocks(state, date, blocks), selectedPerson = c.staff.some(p => p.id === person) ? person : c.staff[0]?.id ?? "";
   useEffect(() => () => controller.dispose(), [controller]);
   useEffect(() => { controller.dismiss(); setDetails(null); }, [date, controller]);
@@ -49,15 +52,9 @@ export function PlaygroundDiary({ session, today }: { session: PlaygroundSession
     };
     document.addEventListener("keydown", dismiss); return () => document.removeEventListener("keydown", dismiss);
   }, [preview, controller]);
-  useEffect(() => {
-    const element = board.current; if (!element) return;
-    const measure = () => setHeight(element.clientHeight || 360); measure();
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure); observer?.observe(element);
-    window.addEventListener("resize", measure); return () => { observer?.disconnect(); window.removeEventListener("resize", measure); };
-  }, [view, date]);
-  const openDetails = (ids: string[], target: HTMLElement) => { controller.dismiss(); opener.current = target; setDetails(ids); };
+  const openDetails = (ids: string[], target: HTMLElement, candidate?: { staffId: string; minute: number }) => { controller.dismiss(); opener.current = target; setDetailCandidate(candidate ?? null); setDetails(ids); };
   const openComposer = (target: HTMLElement, staffId = selectedPerson, minute?: number) => {
-    controller.dismiss(); opener.current = target; setComposer({ date, staffId, minute });
+    controller.dismiss(); opener.current = target; setComposer({ date, staffId, minute, serviceId: selectedService || undefined });
   };
   const previewEvents = (ids: string[]) => ({
     onPointerEnter: (e: React.PointerEvent<HTMLElement>) => {
@@ -78,7 +75,6 @@ export function PlaygroundDiary({ session, today }: { session: PlaygroundSession
     },
     onBlur: (e: React.FocusEvent<HTMLElement>) => { if (!document.getElementById("reception-preview")?.contains(e.relatedTarget)) controller.leave(); },
   });
-  const blockLabel = (b: DiaryBlock) => `${minutesLabel(b.start)}-${minutesLabel(b.end)} ${b.kind}: ${b.label}${b.kind === "appointment" ? " / Scheduled" : ""}${b.conflict ? " / CONFLICT" : ""}`;
   const detailItems = (ids: string[], pinned: boolean) => <ul className="space-y-3">{ids.map(id => blocks.find(b => b.id === id)).filter((b): b is DiaryBlock => !!b).map(b => <li key={b.id} className="rounded-xl border border-slate-300 bg-slate-50 p-3 text-sm text-slate-950">
     <strong>{minutesLabel(b.start)}-{minutesLabel(b.end)} / {b.kind}</strong><p>{b.label}</p>{b.kind === "appointment" && <p>Status: Scheduled</p>}
     {b.conflict && <p className="font-semibold text-amber-900">Conflict with occupied or closed time. Nothing has moved.</p>}
@@ -100,54 +96,27 @@ export function PlaygroundDiary({ session, today }: { session: PlaygroundSession
     <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600">
       <span>{c.business.name} / {c.business.timezone}</span>
       <label>Details: <select aria-label="Details preference" className="rounded border bg-white p-1" value={mode} onChange={e => { const mode = e.target.value as DetailsMode; setMode(mode); controller.preference(mode); }}><option value="click">Click</option><option value="hover">Hover</option></select></label>
-      {exceptions.length > 0 && <button className="rounded-lg border border-amber-700 bg-amber-50 px-2 py-1 font-semibold text-amber-950" onClick={e => openDetails(exceptions.map(b => b.id), e.currentTarget)}>Exceptions: {exceptions.length} occupied items (retained / out of hours)</button>}
-      <details className="relative"><summary className="cursor-pointer">Legend & timezone</summary><div className="absolute right-0 z-10 mt-1 w-72 max-w-[calc(100vw-24px)] rounded-xl border bg-white p-3 shadow-lg">{zoneDatePreview(c.business.timezone, date)}. Lane colours identify people. Solid = scheduled; softer dashed = buffer; red stripes / ! = conflict; double violet = simulated busy; grey = closed. Empty space is only a candidate until a service is validated. All people inherit weekday hours.</div></details>
+      {exceptions.length > 0 && <button className="rounded-lg border border-amber-700 bg-amber-50 px-2 py-1 font-semibold text-amber-950" onClick={e => openDetails(exceptions.map(b => b.id), e.currentTarget)}>Exceptions: {exceptions.length} occupied items (retained / off-grid / out of hours)</button>}
+      <label>Service <select aria-label="Service availability filter" className="rounded border bg-white p-1" value={selectedService} onChange={e => { controller.dismiss(); setServiceId(e.target.value); }}><option value="">Choose service / check availability</option>{c.services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+      <details className="relative"><summary className="cursor-pointer">Tile guide & timezone</summary><div className="absolute right-0 z-10 mt-1 w-72 max-w-[calc(100vw-24px)] rounded-xl border bg-white p-3 shadow-lg">{zoneDatePreview(c.business.timezone, date)}. Times are configured starts. Occupied tiles show any exact interval they intersect, not whole-tile reservations. Select a service for bookable starts. Lane colours identify people; lighter dashed = buffer; violet = busy; red stripes = actual conflict. Range groups expose all exact times.</div></details>
     </div>
     {message && <p role="status" className="mt-1 text-xs">{message}</p>}
     {view === "day" && <>
       <label className="mt-2 text-sm md:hidden">Person <select className="rounded-lg border bg-white p-2" value={selectedPerson} onChange={e => setPerson(e.target.value)}>{c.staff.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-      {!span ? <div className="flex flex-1 items-center justify-center rounded-xl bg-slate-50 p-5 text-center"><p>Closed on this day. Check exceptions for retained appointments, or choose another date.</p></div> : <div className="reception-board mt-3 grid min-h-0 flex-1" style={{ gridTemplateColumns: `48px repeat(${Math.max(c.staff.length, 1)}, minmax(0, 1fr))`, gridTemplateRows: "44px minmax(0, 1fr)" }}>
-        <div className="text-xs text-slate-500">Time</div>{c.staff.map((p, personIndex) => {
-          const items = blocks.filter(b => b.staffId === p.id && b.kind !== "closed" && b.end > span.start && b.start < span.end);
-          return <div key={p.id} data-selected={p.id === selectedPerson} data-family={laneFamily(personIndex)} className="board-person reception-person-heading flex min-w-0 flex-col justify-center border-l px-2 text-sm"><strong className="truncate">{p.name}</strong>
-            <button className="truncate text-left text-xs underline" onClick={e => openDetails(items.map(b => b.id), e.currentTarget)} disabled={!items.length}>{items.length} occupied items / exact details (includes compact blocks)</button></div>;
-        })}
-        <div ref={board} className="relative mb-3 mt-2">{boardTicks(span.start, span.end).map(t => <span key={t} className="absolute -translate-y-1/2 text-[11px] text-slate-500" style={{ top: `${(t - span.start) / (span.end - span.start) * 100}%` }}>{minutesLabel(t)}</span>)}</div>
-        {c.staff.map((p, personIndex) => {
-          const percent = (n: number) => (n - span.start) / (span.end - span.start) * 100;
-          const items = blocks.filter(b => b.staffId === p.id && b.end > span.start && b.start < span.end);
-          return <div key={p.id} data-selected={p.id === selectedPerson} data-family={laneFamily(personIndex)} className="board-person reception-person-lane relative mb-3 mt-2 min-h-0 border-l border-slate-200" aria-label={`${p.name} day lane`}>
-            {unoccupiedPeriods(state, date, p.id, blocks).map(gap => <button key={`free-${gap.start}`} className="reception-free absolute inset-x-0 overflow-hidden text-left text-xs focus:z-10 focus:outline-2 focus:outline-slate-800"
-              aria-label={`New booking candidate for ${p.name}, ${minutesLabel(gap.start)} to ${minutesLabel(gap.end)}. Choose a service to check availability.`}
-              style={{ top: `${percent(gap.start)}%`, height: `${(gap.end - gap.start) / (span.end - span.start) * 100}%` }}
-              onClick={e => { const box = e.currentTarget.getBoundingClientRect(); const raw = e.detail === 0 ? gap.start : gap.start + Math.max(0, Math.min(0.999, (e.clientY - box.top) / box.height)) * (gap.end - gap.start); openComposer(e.currentTarget, p.id, candidateMinute(state, date, Math.floor(raw))); }}>
-              {(gap.end - gap.start) / (span.end - span.start) * height >= 28 && <span className="px-2">+ New booking</span>}
-            </button>)}
-            {items.filter(b => b.kind === "closed").map(b => <button key={b.id} className="absolute inset-x-0 overflow-hidden border-y border-dashed border-slate-400 bg-slate-200 text-xs text-slate-700" style={{ top: `${percent(Math.max(b.start, span.start))}%`, height: `${(Math.min(b.end, span.end) - Math.max(b.start, span.start)) / (span.end - span.start) * 100}%` }} aria-label={blockLabel(b)} onClick={e => openDetails([b.id], e.currentTarget)}>Closed</button>)}
-            {diaryColumns(items).map(({ block: b, column, columns }) => {
-              const pixels = (Math.min(b.end, span.end) - Math.max(b.start, span.start)) / (span.end - span.start) * height;
-              return <button key={b.id} type="button" {...previewEvents([b.id])} aria-describedby={visiblePreview?.includes(b.id) ? "reception-preview" : undefined}
-                data-conflict={b.conflict || undefined} className={`absolute overflow-hidden rounded-lg border px-2 text-left text-xs focus:z-10 focus:outline-2 focus:outline-offset-1 focus:outline-slate-950 ${blockPresentation(b.kind, b.conflict)}`}
-                aria-label={`${blockLabel(b)}. Open pinned details.`} onClick={e => openDetails([b.id], e.currentTarget)}
-                style={{ borderWidth: pixels < 6 ? 0 : 1, top: `${percent(Math.max(b.start, span.start))}%`, height: `${(Math.min(b.end, span.end) - Math.max(b.start, span.start)) / (span.end - span.start) * 100}%`, left: `${column * 100 / columns}%`, width: `${100 / columns}%` }}>
-                {pixels >= 26 ? <span className="block leading-3">{b.conflict ? "! CONFLICT / " : ""}{minutesLabel(b.start)}-{minutesLabel(b.end)} {b.kind === "appointment" ? "Scheduled" : b.kind}<br />{b.summary ?? b.label}</span> : pixels >= 14 ? <span className="whitespace-nowrap">{b.conflict ? "! CONFLICT / " : ""}{minutesLabel(b.start)} {b.kind === "appointment" ? "Scheduled" : b.kind} {b.summary ?? b.label}</span> : null}
-              </button>;
-            })}
-          </div>;
-        })}
-      </div>}
+      {!span ? <div className="flex flex-1 items-center justify-center rounded-xl bg-slate-50 p-5 text-center"><p>Closed on this day. Check exceptions for retained appointments, or choose another date.</p></div> : <TimeTileBoard key={`${state.epoch}:${date}:${state.configRevision}:${selectedService}`} session={session} state={state} person={selectedPerson} serviceId={selectedService} openDetails={openDetails} openComposer={openComposer} previewEvents={previewEvents} dismissPreview={() => controller.dismiss()} />}
+
     </>}
-    {view === "agenda" && <div className="mt-3 min-h-0 flex-1 overflow-auto"><ReceptionExperience embedded today={today} selectedDate={date} onDateChange={d => session.selectDiaryDate(d)} business={{ name: c.business.name, descriptor: c.location.name, ...c.theme }} people={c.staff} services={c.services}
+    {view === "agenda" && <div className="mt-3 min-h-0 flex-1 overflow-auto"><ReceptionExperience embedded today={today} selectedDate={date} onDateChange={d => session.selectDiaryDate(d)} business={{ name: c.business.name, descriptor: locationSummary(c), ...c.theme }} people={c.staff} services={c.services}
       appointmentsFor={d => state.appointments.filter(a => a.date === d)} onCancel={id => session.cancel(id)} onBooking={() => { const target = document.querySelector<HTMLElement>("[data-reception-new-booking]"); if (target) openComposer(target); }} bookingActionLabel="New booking" /></div>}
     {visiblePreview && visiblePreview.length > 0 && <aside id="reception-preview" role="region" aria-label="Read-only appointment preview" tabIndex={0}
       className="reception-preview fixed z-40 max-h-56 w-80 overflow-auto rounded-xl border border-slate-300 bg-white p-3 text-slate-900 shadow-xl" style={{ left: previewPoint.x, top: previewPoint.y }}
       onPointerEnter={() => controller.keep()} onPointerLeave={e => { if (!e.currentTarget.contains(document.activeElement)) controller.leave(); }} onFocus={() => controller.keep()} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) controller.leave(); }}>
-      {detailItems(visiblePreview, false)}<div className="mt-2 flex gap-2"><button className={button} onClick={() => { controller.dismiss(); opener.current = previewOpener.current; setDetails(visiblePreview); }}>Pin details</button><button className={button} onClick={() => controller.dismiss(() => {
+      {detailItems(visiblePreview, false)}<div className="mt-2 flex gap-2"><button className={button} onClick={() => { controller.dismiss(); opener.current = previewOpener.current; setDetailCandidate(null); setDetails(visiblePreview); }}>Pin details</button><button className={button} onClick={() => controller.dismiss(() => {
         dismissedHoverTrigger.current = previewOpener.current;
         if (previewOpener.current?.isConnected) { suppressRestoredFocus.current = true; previewOpener.current.focus({ preventScroll: true }); }
       })}>Dismiss</button></div>
     </aside>}
-    {details && <ReceptionDialog movable title="Occupied time details" returnFocus={opener.current} onClose={() => setDetails(null)}>{detailItems(details, true)}{!details.some(id => blocks.some(b => b.id === id)) && <p>No occupied items remain.</p>}</ReceptionDialog>}
+    {details && <ReceptionDialog movable title="Occupied time details" returnFocus={opener.current} onClose={() => setDetails(null)}>{detailItems(details, true)}{detailCandidate && <button className={button} onClick={() => { setDetails(null); openComposer(opener.current!, detailCandidate.staffId, detailCandidate.minute); }}>Check {minutesLabel(detailCandidate.minute)} start with a service</button>}{!details.some(id => blocks.some(b => b.id === id)) && <p>No occupied items remain.</p>}</ReceptionDialog>}
     {composer && <ReceptionComposer session={session} seed={composer} returnFocus={opener.current} onClose={() => { setComposer(null); setMessage("Booking composer closed."); }} />}
   </section>;
 }

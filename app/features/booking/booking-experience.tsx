@@ -1,3 +1,4 @@
+import { timeButtonClass } from "./time-button";
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router";
@@ -209,7 +210,7 @@ export function BookingExperience({ today, now, services = DEMO_SERVICES, people
                         {slots.map((slot) => (
                           <button key={slot.startMinute} type="button" aria-pressed={startMinute === slot.startMinute}
                             onClick={() => setStartMinute(slot.startMinute)}
-                            className={`rounded-xl border py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--booking-primary)] ${startMinute === slot.startMinute ? "border-[var(--booking-primary)] bg-[var(--booking-primary)] text-[var(--booking-on-primary)]" : "border-[#dce7dc] bg-white text-[#38594a] hover:border-[#8daa94]"}`}>
+                            className={timeButtonClass(startMinute === slot.startMinute)}>
                             {minutesLabel(slot.startMinute)}
                           </button>
                         ))}
@@ -269,7 +270,7 @@ export function BookingExperience({ today, now, services = DEMO_SERVICES, people
               <div><dt className="text-xs font-semibold uppercase tracking-wider text-[#8e9d92]">Service</dt><dd className="mt-1.5 font-semibold">{service.name}</dd><dd className="mt-1 text-[#75867a]">{service.durationMinutes} minutes</dd></div>
               <div className="border-t border-[#edf0eb] pt-5"><dt className="text-xs font-semibold uppercase tracking-wider text-[#8e9d92]">Practitioner</dt><dd className="mt-1.5 font-semibold">{selectedStaff?.name ?? "Any available practitioner"}</dd></div>
               <div className="border-t border-[#edf0eb] pt-5"><dt className="text-xs font-semibold uppercase tracking-wider text-[#8e9d92]">Date & time</dt><dd className="mt-1.5 font-semibold">{startMinute === null ? "Not chosen yet" : `${formatDemoDate(date)} · ${minutesLabel(startMinute)}`}</dd><dd className="mt-1 text-[#75867a]">{onBook ? business.timezone : "South Africa Standard Time"}</dd></div>
-              <div className="border-t border-[#edf0eb] pt-5"><dt className="text-xs font-semibold uppercase tracking-wider text-[#8e9d92]">Location</dt><dd className="mt-1.5 font-semibold">{business.location}</dd></div>
+              {business.location && <div className="border-t border-[#edf0eb] pt-5"><dt className="text-xs font-semibold uppercase tracking-wider text-[#8e9d92]">Location</dt><dd className="mt-1.5 font-semibold">{business.location}</dd></div>}
             </dl>
             <div className="border-t border-[#edf0eb] bg-[#f8faf6] px-6 py-5 text-xs leading-6 text-[#708174]">
               Built with <strong className="text-[var(--booking-ink)]">Veni Reserve</strong><br />

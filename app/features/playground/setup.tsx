@@ -19,7 +19,7 @@ export function ConfigurationEditor({ config: c, step, update, upload, timezoneL
     {step === 0 && <>
       <p className="text-sm text-slate-600">Start with your idea. Use fictional or proposed business details, never private customer data.</p>
       <label className="block font-medium">Business name<input className={inputClass} autoComplete="off" maxLength={100} value={c.business.name} onChange={e => update({ ...c, business: { ...c.business, name: e.target.value } })} /></label>
-      <label className="block font-medium">Location name<input className={inputClass} autoComplete="off" maxLength={100} value={c.location.name} onChange={e => update({ ...c, location: { ...c.location, name: e.target.value } })} /></label>
+      <details><summary className="cursor-pointer text-sm underline">Branch / venue name (optional)</summary><p className="mt-2 text-sm text-slate-600">For example, Main practice or Hatfield branch. Leave blank for a single business.</p><label className="block font-medium">Branch / venue name<input className={inputClass} autoComplete="off" maxLength={100} value={c.location.name} onChange={e => update({ ...c, location: { ...c.location, name: e.target.value } })} /></label></details>
       <LocationEditor config={c} update={update} locked={timezoneLocked} />
       <label className="block font-medium">Business category <span className="text-slate-500">(optional)</span><input className={inputClass} autoComplete="off" maxLength={60} value={c.business.category} onChange={e => update({ ...c, business: { ...c.business, category: e.target.value } })} /></label>
     </>}

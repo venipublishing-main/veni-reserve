@@ -4,14 +4,14 @@ import { ReceptionDraft } from "./reception-state";
 import { ReceptionDialog } from "./reception-dialog";
 import { minutesLabel } from "../demo/booking";
 
-export type ComposerSeed = { date: string; staffId: string; minute?: number };
+export type ComposerSeed = { date: string; staffId: string; minute?: number; serviceId?: string };
 export function ReceptionComposer({ session, seed, onClose, returnFocus }: {
   session: PlaygroundSession; seed: ComposerSeed; onClose: () => void; returnFocus: HTMLElement | null;
 }) {
   const state = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot), c = state.config;
   const [draft] = useState(() => new ReceptionDraft(session));
   const [date, setDate] = useState(seed.date), [staffId, setStaff] = useState(seed.staffId);
-  const [serviceId, setService] = useState(c.services.find(s => s.eligibleStaffIds.includes(seed.staffId))?.id ?? "");
+  const [serviceId, setService] = useState(seed.serviceId ?? c.services.find(s => s.eligibleStaffIds.includes(seed.staffId))?.id ?? "");
   const [minute, setMinute] = useState(seed.minute ?? -1), [error, setError] = useState("");
   const [complete, setComplete] = useState(false);
   const service = c.services.find(s => s.id === serviceId), slots = session.slots(date, serviceId, staffId);
