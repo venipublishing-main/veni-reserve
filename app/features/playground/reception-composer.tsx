@@ -1,3 +1,4 @@
+import { availablePeople } from "./capacity";
 import { canOverrideBuffer } from "./personnel";
 import { useState, useSyncExternalStore } from "react";
 import type { PlaygroundSession } from "./session";
@@ -5,7 +6,7 @@ import { ReceptionDraft } from "./reception-state";
 import { ReceptionDialog } from "./reception-dialog";
 import { minutesLabel } from "../demo/booking";
 
-export type ComposerSeed = { date: string; staffId: string; minute?: number; serviceId?: string; actorId?: string; override?: boolean };
+export type ComposerSeed = { date: string; staffId: string; minute?: number; serviceId?: string; actorId?: string; override?: boolean; aggregateAvailability?: boolean };
 export function ReceptionComposer({ session, seed, onClose, returnFocus }: {
   session: PlaygroundSession; seed: ComposerSeed; onClose: () => void; returnFocus: HTMLElement | null;
 }) {
@@ -14,10 +15,12 @@ export function ReceptionComposer({ session, seed, onClose, returnFocus }: {
   const [date, setDate] = useState(seed.date), [staffId, setStaff] = useState(seed.staffId);
   const [serviceId, setService] = useState(seed.serviceId ?? c.services.find(s => s.eligibleStaffIds.includes(seed.staffId))?.id ?? "");
   const [minute, setMinute] = useState(seed.minute ?? -1), [error, setError] = useState("");
-  const [override, setOverride] = useState(seed.override ?? false);
+  const [override, setOverride] = useState(!seed.aggregateAvailability && (seed.override ?? false));
   const [confirmation, setConfirmation] = useState("");
   const [complete, setComplete] = useState(false);
-  const allowed = canOverrideBuffer(c, seed.actorId, staffId);
+  const allowed = !seed.aggregateAvailability && canOverrideBuffer(c, seed.actorId, staffId);
+  const people = seed.aggregateAvailability ? availablePeople(session, state, date, serviceId, minute) : c.staff;
+  const services = seed.aggregateAvailability ? c.services.filter(s => availablePeople(session, state, date, s.id, minute).length > 0) : c.services.filter(s => s.eligibleStaffIds.includes(staffId));
   const service = c.services.find(s => s.id === serviceId), slots = override && allowed ? session.receptionSlots(date, serviceId, staffId, seed.actorId!) : session.slots(date, serviceId, staffId);
   const touched = override ? session.bufferTouches(date, serviceId, minute, staffId) : [];
   const confirmationKey = JSON.stringify([state.epoch, state.configRevision, date, staffId, serviceId, minute, touched]);
@@ -30,8 +33,9 @@ export function ReceptionComposer({ session, seed, onClose, returnFocus }: {
       if (result) setError(result); else { setComplete(true); setError(""); }
     }}>
       <p className="text-sm text-slate-600">{c.business.timezone} · Synthetic visitor assigned automatically. Empty board space is a candidate, not a reserved slot.</p>
-      <label className="block">Person<select autoFocus className={field} value={staffId} onChange={e => { setStaff(e.target.value); setService(""); setMinute(-1); setError(""); }}><option value="">Choose person</option>{c.staff.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-      <label className="block">Service<select className={field} value={serviceId} onChange={e => { setService(e.target.value); setMinute(-1); setError(""); }}><option value="">Choose eligible service</option>{c.services.filter(s => s.eligibleStaffIds.includes(staffId)).map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+      {seed.aggregateAvailability && <p className="text-sm">Shared availability at this time. Only practitioners available for the selected service and start are offered; all rules are rechecked on submission.</p>}
+      <label className="block">Person<select autoFocus className={field} value={staffId} onChange={e => { setStaff(e.target.value); if (!seed.aggregateAvailability) { setService(""); setMinute(-1); } setError(""); }}><option value="">Choose person</option>{seed.aggregateAvailability && staffId && !people.some(p => p.id === staffId) && <option disabled value={staffId}>Previous practitioner no longer available</option>}{people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+      <label className="block">Service<select className={field} value={serviceId} onChange={e => { setService(e.target.value); if (seed.aggregateAvailability) { const next = availablePeople(session, state, date, e.target.value, minute); if (!next.some(p => p.id === staffId)) setStaff(next[0]?.id ?? ""); } else setMinute(-1); setError(""); }}><option value="">Choose eligible service</option>{seed.aggregateAvailability && serviceId && !services.some(s => s.id === serviceId) && <option disabled value={serviceId}>Previous service no longer available</option>}{services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
       <div className="grid grid-cols-2 gap-3"><label>Date<input className={field} type="date" value={date} onChange={e => { setDate(e.target.value); setMinute(-1); }} /></label>
         <label>Available start<select className={field} value={minute} onChange={e => { setMinute(Number(e.target.value)); setError(""); }}><option value={-1}>Choose valid start</option>
           {!valid && minute >= 0 && <option value={minute}>{minutesLabel(minute)} — candidate unavailable</option>}

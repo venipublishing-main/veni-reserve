@@ -38,3 +38,13 @@ export function capacitySummary(rows: CapacityRow[]) {
     buffers: rows.some(r => r.cells.some(c => c.tile.blocks.some(b => b.kind === "buffer"))),
     busy: rows.some(r => r.cells.some(c => c.tile.blocks.some(b => b.kind === "busy"))) };
 }
+
+/** The owner-facing white affordance is existential, not a practitioner capacity count. */
+export function rowAvailability(row: CapacityRow) {
+  const choices = row.cells.filter(c => c.available && c.serviceId);
+  return { available: choices.length > 0, choices, occupied: row.cells.filter(c => c.tile.blocks.length > 0) };
+}
+/** Strict scheduler choices for the aggregate white-cell composer, never buffer overrides. */
+export function availablePeople(session: Pick<PlaygroundSession, "slots">, state: SessionState, date: string, serviceId: string, minute: number) {
+  return state.config.staff.filter(p => session.slots(date, serviceId, p.id).some(s => s.staffId === p.id && (minute < 0 || s.startMinute === minute)));
+}

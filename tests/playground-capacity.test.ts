@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
 import { PlaygroundSession, emptyConfiguration, configurationErrors, editPerson, SESSION_POLICY } from "../app/features/playground/session";
 import { canOverrideBuffer, personColour, personEmail, staffTheme } from "../app/features/playground/personnel";
-import { capacityRows, capacitySummary, capacityPage, groupCapacityRows } from "../app/features/playground/capacity";
+import { capacityRows, capacitySummary, capacityPage, groupCapacityRows, rowAvailability, availablePeople } from "../app/features/playground/capacity";
 import { ReceptionDraft } from "../app/features/playground/reception-state";
 import { diaryBlocks } from "../app/features/playground/diary-projection";
 import { ReceptionComposer } from "../app/features/playground/reception-composer";
@@ -151,4 +151,58 @@ it("enforces notice, horizon and service eligibility even for an elevated simula
   expect(s.receptionSlots("2026-12-02", "service-1", "staff-1", "operator")).toEqual([]);
   const c = structuredClone(s.getSnapshot().config); c.services[0].eligibleStaffIds = ["staff-2"]; s.update(c);
   expect(s.receptionSlots(date, "service-1", "staff-1", "operator")).toEqual([]);
+});
+
+describe("owner sketch: one shared white cell", () => {
+  const firstRow = (s: PlaygroundSession) => render(createElement(PlaygroundDiary, { session: s, today: date })).split('data-time="540"')[1].split('data-time="555"')[0];
+  it("renders one white time-labelled cell for two available practitioners, not two positions", () => {
+    const s = active(), row = capacityRows(s, s.getSnapshot(), date)[0], html = firstRow(s);
+    expect(rowAvailability(row).choices).toHaveLength(2);
+    expect(html.match(/data-aggregate="true"/g)).toHaveLength(1); expect(html).toContain('<time>09:00</time>');
+    expect(html).not.toContain('data-staff=');
+  });
+  it("keeps one white cell beside an individual booked cell, then removes white when all are unavailable", () => {
+    const s = booked(); let html = firstRow(s);
+    expect(html.match(/data-aggregate="true"/g)).toHaveLength(1); expect(html).toContain('data-staff="staff-1"');
+    expect(html.match(/<time>09:00<\/time>/g)).toHaveLength(2);
+    s.book(date, "service-1", 540, "staff-2"); html = firstRow(s);
+    expect(html).not.toContain('data-aggregate="true"'); expect(html).toContain('data-staff="staff-1"'); expect(html).toContain('data-staff="staff-2"');
+  });
+  it("keeps protected buffers occupied and never counts operational override as white availability", () => {
+    const s = booked(); s.book(date, "service-1", 540, "staff-2"); const row = capacityRows(s, s.getSnapshot(), date)[1];
+    expect(rowAvailability(row).available).toBe(false); expect(rowAvailability(row).occupied.map(c => c.status)).toEqual(["Buffer", "Buffer"]);
+    expect(s.receptionSlots(date, "service-1", "staff-1", "operator").some(t => t.startMinute === row.start)).toBe(true);
+  });
+  it("uses all people for availability regardless of which occupied people page is visible", () => {
+    const s = active(), state = structuredClone(s.getSnapshot()); state.config.staff = Array.from({ length: 17 }, (_, i) => ({ ...state.config.staff[0], id: `person-${i}` }));
+    const provider = { slots: (_date: string, _service: string, id: string) => id === "person-16" ? [{ startMinute: 540, staffId: id }] : [] };
+    const row = capacityRows(provider, state, date)[0];
+    expect(capacityPage(state.config.staff, 0, 3).items.some(p => p.id === "person-16")).toBe(false);
+    expect(rowAvailability(row).choices.map(c => c.staffId)).toEqual(["person-16"]); expect(rowAvailability(row).available).toBe(true);
+  });
+  it("offers only eligible currently available practitioners for the selected start and service", () => {
+    const s = booked(); expect(availablePeople(s, s.getSnapshot(), date, "service-1", 540).map(p => p.id)).toEqual(["staff-2"]);
+    const c = structuredClone(s.getSnapshot().config); c.services[0].eligibleStaffIds = ["staff-1"]; s.update(c);
+    expect(availablePeople(s, s.getSnapshot(), date, "service-1", 540)).toEqual([]);
+    expect(rowAvailability(capacityRows(s, s.getSnapshot(), date, "service-1")[0]).available).toBe(false);
+  });
+  it("seeds the strict aggregate composer at the requested time and does not offer occupied practitioners", () => {
+    const s = booked(); const html = render(createElement(ReceptionComposer, { session: s, seed: { date, minute: 540, staffId: "staff-2", serviceId: "service-1", actorId: "operator", aggregateAvailability: true }, returnFocus: null, onClose: () => {} }));
+    expect(html).toContain('value="540" selected'); expect(html).toContain('value="staff-2" selected');
+    expect(html).not.toContain('<option value="staff-1"'); expect(html).not.toContain("Consider soft-buffer override");
+    expect(html).toContain("Only practitioners available");
+  });
+  it("rejects a white-cell selection that becomes occupied before submission", () => {
+    const s = active(), draft = new ReceptionDraft(s), row = rowAvailability(capacityRows(s, s.getSnapshot(), date)[0]);
+    const chosen = row.choices[0]; s.book(date, chosen.serviceId!, 540, chosen.staffId);
+    expect(draft.submit({ date, serviceId: chosen.serviceId!, minute: 540, staffId: chosen.staffId })).toContain("no longer");
+    expect(availablePeople(s, s.getSnapshot(), date, chosen.serviceId!, 540).map(p => p.id)).not.toContain(chosen.staffId);
+  });
+  it("retains a valid short start in the white choice while showing exact partial occupancy separately", () => {
+    const s = active(), c = structuredClone(s.getSnapshot().config); c.startInterval = 5; c.services[0].durationMinutes = 5; c.services[0].bufferAfterMinutes = 0; s.update(c);
+    s.book(date, "service-1", 550, "staff-1"); c.startInterval = 15; s.update(c);
+    const row = rowAvailability(capacityRows(s, s.getSnapshot(), date)[0]);
+    expect(row.available).toBe(true); expect(row.occupied).toHaveLength(1); expect(row.occupied[0].tile.conflict).toBe(false);
+    expect(row.choices.map(c => c.staffId)).toContain("staff-1");
+  });
 });

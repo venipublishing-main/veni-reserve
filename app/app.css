@@ -77,11 +77,10 @@ body {
 .time-tile-board { align-items: start; }
 
 /* One shared capacity slab; row height is independent of appointment duration. */
-.capacity-slab { display: grid; grid-auto-flow: column; gap: 3px 20px; align-content: start; }
-.capacity-row { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; height: 31px; }
-.capacity-row > time { width: 40px; flex-shrink: 0; }
+.capacity-slab { display: flex; flex-direction: column; gap: 4px; width: min(100%, 640px); margin-inline: auto; }
+.capacity-row { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; min-height: 36px; }
 .capacity-cells { display: flex; justify-content: center; gap: 3px; min-width: 0; }
-.capacity-cell { display: flex; align-items: center; justify-content: center; gap: 3px; width: 66px; height: 29px; border: 1px solid #64748b; border-radius: 7px; font-size: 12px; padding: 2px 4px; }
+.capacity-cell { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; width: 80px; height: 36px; flex-shrink: 0; border: 1px solid #64748b; border-radius: 7px; font-size: 12px; padding: 2px 4px; }
 .capacity-cell[data-state="Available"] { background: #fff; color: #0f172a; }
 .capacity-cell[data-state="Booked"], .capacity-cell[data-state="In progress"] { background: var(--staff-booking); color: var(--staff-on-colour); border-color: var(--staff-booking); }
 .capacity-cell[data-state="Buffer"] { background: var(--staff-buffer); color: #0f172a; border: 1px dashed var(--staff-booking); }
@@ -94,3 +93,6 @@ body {
 .capacity-person i { width: 10px; height: 10px; background: var(--staff-colour); border: 1px solid #64748b; border-radius: 50%; }
 .capacity-range { border: 1px solid #64748b; border-radius: 7px; padding: 4px; min-height: 31px; font-size: 12px; text-align: left; background-color: #f8fafc; }
 @media (max-width: 767px) { .capacity-slab { column-gap: 6px; } }
+
+.capacity-overflow { max-width: 140px; border: 1px dashed #64748b; border-radius: 7px; padding: 3px; font-size: 11px; background-color: #f1f5f9; }
+.capacity-cells { flex-wrap: wrap; }

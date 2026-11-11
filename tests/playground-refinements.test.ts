@@ -50,7 +50,7 @@ describe("separate people, workspace roles and bookable staff", () => {
     const c = structuredClone(s.getSnapshot().config); c.services[0].eligibleStaffIds = ["person-3"];
     expect(configurationErrors(c, 2)).toContain("Assign at least one eligible person to every service.");
     const html = render(createElement(PlaygroundDiary, { session: s, today: date }));
-    expect(html).not.toContain('data-staff="person-3"'); expect(html).toContain('data-staff="staff-1"');
+    expect(html).not.toContain('data-staff="person-3"'); expect(html).toContain('data-aggregate="true"');
   });
   it("retains snapshots and protected time through role, name, bookability and removal edits", () => {
     const s = active(); s.book(date, "service-1", 540, "staff-1"); const original = s.getSnapshot().appointments[0];

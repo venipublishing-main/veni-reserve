@@ -615,3 +615,57 @@ No browser controls were retried. No hosted state, OAuth, email delivery, paid
 resource, persistence, merge or deployment is introduced.
 
 Local validation: pinned typecheck, lint, 238 tests across eleven files, and build PASS. Browser acceptance remains pending.
+
+## Owner sketch clarification: one white availability cell (11 November 2026)
+
+The supplied sketch and follow-up clarify the meaning of white: **at least one
+practitioner is available**, not one white position per free practitioner. This
+supersedes the earlier central-slab cell-count interpretation and repeated attachment's
+older starting SHA. Work continues from completed commit f45a82e, preserving its
+buffer policies, staff colours/emails, location setup and lifecycle safeguards.
+
+Day is now a single centred chronological stack, without a second time column.
+Times appear inside the buttons, following the sketch. Each exact row has at most
+one white Available button computed across ALL practitioners. Coloured buttons
+show individual occupied practitioners and buffers. The white button disappears
+when the shared scheduler has no valid start for anyone. Empty restricted rows show
+a neutral No valid start marker; unavailable individual empty positions are omitted.
+An exact short start within a partially occupied display bucket can correctly show
+both the shared white button and the coloured occupied button; interval truth wins
+over whole-bucket assumptions.
+
+Clicking white opens the existing composer with an actually valid service/person
+and the selected time. Its practitioner choices are strictly filtered by service,
+date and current exact availability. Changing practitioner preserves the chosen
+time; changing service offers only matching available people. Stale choices are
+labelled unavailable and cannot commit. This entry never offers a buffer override;
+that remains the separate explicit buffer-details/warning/confirmation path.
+
+People paging applies only to individual occupied buttons. Shared availability
+always includes all people, including those on another page. Omitted occupied
+buttons have a visible count/link and conflict warning, never silent disappearance.
+Dense time-range overlays retain every exact row; range summaries count **available
+times**, not multiple available practitioner positions. The setup cap is still three;
+projection and paging retain larger-team tests.
+
+New tests prove one white cell for several free people, one white plus an occupied
+cell, no white when fully unavailable, strict buffers, availability across pages,
+service/practitioner filtering, composer seed, stale-submit rejection and partial
+exact starts. The prior non-bookable-person presentation assertion now checks the
+shared availability affordance instead of an empty practitioner's cell. All prior
+scheduling, permission, reset, colour/email and location regressions remain.
+
+Manual review remains pending:
+
+- [ ] Compare a short configured day with the sketch: one centred stack, time labels
+  inside cells, white 09:15 beside one booking, and no white when everyone is busy.
+- [ ] Open white, switch eligible practitioner/service and verify the chosen time and
+  strict availability; race another booking and verify stale submission is rejected.
+- [ ] Check individual buffers, busy/conflicts and existing permission/warning flows.
+- [ ] Check dense groups, occupied people-page indicators, narrow-screen layout,
+  keyboard focus, dragging and reset/expiry. Verify no occupancy becomes inaccessible.
+
+No browser controls were retried; sketch alignment describes implemented structure,
+not a visual-fit or browser-interaction PASS.
+
+Validation for the sketch clarification: pinned typecheck, lint, all 246 tests across eleven files, and build PASS. Actual browser/visual acceptance remains pending.
