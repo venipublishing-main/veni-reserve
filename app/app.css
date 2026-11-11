@@ -96,3 +96,21 @@ body {
 
 .capacity-overflow { max-width: 140px; border: 1px dashed #64748b; border-radius: 7px; padding: 3px; font-size: 11px; background-color: #f1f5f9; }
 .capacity-cells { flex-wrap: wrap; }
+
+/* Shared Day/range geometry: one exact time rail, stable whole-booking lanes. */
+.capacity-board { overflow: auto; }
+.span-surface { position: relative; width: min(100%, 700px); margin-inline: auto; }
+.span-lane-headings { display: grid; gap: 6px; font-size: 12px; margin-bottom: 5px; }
+.span-lane-headings > * { min-width: 0; overflow-wrap: anywhere; }
+.span-grid { position: relative; }
+.span-time { position: absolute; left: 0; font-size: 13px; }
+.span-people { position: absolute; inset: 0 0 0 86px; display: flex; gap: 6px; }
+.span-person-lane { position: relative; min-width: 0; }
+.booking-span { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; overflow: hidden; border: 1px solid var(--staff-booking); border-radius: 6px; font-size: 12px; line-height: 16px; background: var(--staff-booking); color: var(--staff-on-colour); text-align: center; }
+.booking-span[data-state="Buffer"] { background: var(--staff-buffer); color: #0f172a; border-style: dashed; }
+.booking-span[data-state="Busy"] { background: #ede9fe; color: #4c1d95; border: 3px double #6d28d9; }
+.booking-span[data-conflict="true"] { background-image: repeating-linear-gradient(135deg, transparent 0 5px, #ffffff80 5px 8px); outline: 2px solid #b91c1c; outline-offset: -2px; }
+.booking-span:focus-visible { outline: 3px solid #0f172a; z-index: 2; }
+.span-break { position: absolute; inset-inline: 0; background: repeating-linear-gradient(135deg,#e2e8f0 0 5px,#f1f5f9 5px 8px); font-size: 12px; text-align: center; }
+.span-preview { position: fixed; z-index: 5; width: 300px; max-width: calc(100vw - 32px); max-height: 220px; overflow: auto; border: 1px solid #64748b; border-radius: 10px; background: white; color: #0f172a; padding: 12px; box-shadow: 0 4px 20px #0003; font-size: 14px; }
+.span-preview button { border: 1px solid #64748b; border-radius: 6px; padding: 4px 8px; margin: 6px 6px 0 0; }

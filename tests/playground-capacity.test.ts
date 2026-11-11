@@ -163,10 +163,10 @@ describe("owner sketch: one shared white cell", () => {
   });
   it("keeps one white cell beside an individual booked cell, then removes white when all are unavailable", () => {
     const s = booked(); let html = firstRow(s);
-    expect(html.match(/data-aggregate="true"/g)).toHaveLength(1); expect(html).toContain('data-staff="staff-1"');
-    expect(html.match(/<time>09:00<\/time>/g)).toHaveLength(2);
+    expect(html.match(/data-aggregate="true"/g)).toHaveLength(1); expect(render(createElement(PlaygroundDiary, { session: s, today: date }))).toContain('data-staff="staff-1"');
+    expect(html.match(/<time>09:00<\/time>/g)).toHaveLength(1);
     s.book(date, "service-1", 540, "staff-2"); html = firstRow(s);
-    expect(html).not.toContain('data-aggregate="true"'); expect(html).toContain('data-staff="staff-1"'); expect(html).toContain('data-staff="staff-2"');
+    expect(html).not.toContain('data-aggregate="true"'); expect(html).toContain('data-state="Blocked"'); const full = render(createElement(PlaygroundDiary, { session: s, today: date })); expect(full).toContain('data-staff="staff-1"'); expect(full).toContain('data-staff="staff-2"');
   });
   it("keeps protected buffers occupied and never counts operational override as white availability", () => {
     const s = booked(); s.book(date, "service-1", 540, "staff-2"); const row = capacityRows(s, s.getSnapshot(), date)[1];

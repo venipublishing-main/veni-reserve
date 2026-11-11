@@ -669,3 +669,62 @@ No browser controls were retried; sketch alignment describes implemented structu
 not a visual-fit or browser-interaction PASS.
 
 Validation for the sketch clarification: pinned typecheck, lint, all 246 tests across eleven files, and build PASS. Actual browser/visual acceptance remains pending.
+
+## Continuous booking spans and popup previews (11 November 2026)
+
+This revision supersedes the preceding repeated occupied-cell presentation and
+remove-white/reflow rule, following PR comment 6795746966 and the updated sketch.
+
+- [x] One fixed time-button rail from actual interval/split hours. White uses strict
+  aggregate scheduler availability; unavailable times stay neutral and disabled.
+- [x] Shared Day/range span renderer. A booking is one service shape plus its separate
+  lighter buffer. One piecewise time scale includes row spacing and explicit breaks;
+  partial/off-grid endpoints are not rounded. Adjacent identities stay separate.
+- [x] Stable full-day practitioner lanes and whole-booking overlap sublanes; actual
+  conflicts have patterns/labels. Red practitioner colour alone is not a conflict.
+- [x] Exact continuation bounds/full labels across ranges; people paging discloses
+  omitted occupied identities/conflicts and includes everyone in availability.
+- [x] Main Day renders a detailed range immediately, never summary buttons alone.
+  Readable 28px start pitch determines visible range capacity; 44px expanded pitch
+  offers more room. Whole day appears when it fits this density. Otherwise the
+  labelled range selector exposes every range with occupancy/conflict summaries.
+  Short segments keep exact geometry; full endpoints remain in accessible labels,
+  title, delayed preview and pinned details. No text is shrunk to force fit.
+- [x] Both surfaces attach the same tested pointer/focus/click handlers. Each owns
+  its preview inside its own DOM scope, including inside the native range dialog.
+  Escape is captured/prevented before native dialog dismissal; trigger focus is
+  restored with reopening suppressed. Pointer/focus can enter the preview.
+- [x] Range-to-details/composer closes the range and returns later to its surviving
+  Expand button. Main span triggers survive modal transitions. Relevant changes
+  dispose/dismiss previews; existing reset/expiry and stale booking rules remain.
+- [x] No scheduling-engine, persistence, dependency or hosted-service changes.
+
+Automated evidence: pinned typecheck, lint, 271 tests across 12 files, build PASS.
+Fixtures cover the owner sketch, one-hour service/10-minute buffer, full-capacity
+rail, off-grid geometry, same-person overlap, stable continuation/lane identities,
+people paging, split breaks and exceptions. Shared real event handlers are exercised
+with synthetic events/focus targets for Click/Hover, pointer travel, touch fallback,
+pinning, Escape priority/focus suppression and disposal. This is not a mounted
+browser/native-dialog test. Existing scheduling/override/location/lifecycle tests
+remain. Two obsolete presentation assertions changed: repeated booking/time markup
+inside each row becomes separate spans plus one time rail; dense summary-button
+text becomes an explicitly labelled range selector.
+
+Focused manual acceptance (not yet performed; browser controls remain blocked):
+
+- [ ] Desktop/laptop, tablet, mobile: compare fixtures A/B with the sketch. Verify
+  continuous shapes, lighter exact buffer boundaries, readable labels and fixed rail.
+  Inspect dense ranges, split breaks, continuation arrows and all people pages.
+- [ ] In BOTH Day and expanded range: Click mode, delayed Hover/focus, pointer into
+  preview, tap/Enter to pin, Escape first dismissing preview and a second Escape
+  closing the range, correct focus return, no duplicate modal or immediate reopening.
+- [ ] Open strict white-time composer; confirm exact time and eligible people/service
+  choices. Recheck explicit scoped buffer override, stale/duplicate submission,
+  cancellation and immediate availability updates without count inflation.
+- [ ] Drag/dock/recentre range and composer on desktop; use stable touch dialogs.
+  Change date/operator/view, reset and expire while previews/composers are pending.
+- [ ] Check off-grid/removed/out-of-hours exceptions, real conflicts versus red
+  staff colour, Agenda/By practitioner, VVB routes and browser console.
+
+No new screenshots or browser-fit/interaction PASS are claimed. No blocked browser
+mechanism was retried. PR #10 stays draft on the same stacked base; PR #9 is untouched.

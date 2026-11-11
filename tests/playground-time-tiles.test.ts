@@ -1,4 +1,4 @@
-﻿import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
@@ -125,7 +125,7 @@ describe("exact occupancy tiles and shared scheduler agreement", () => {
     expect(groups.length).toBeLessThanOrEqual(12); expect(groups.flat()).toEqual(result); expect(bookingCount(groups.flat())).toBe(1);
     expect(groups.flat().some(t => t.conflict)).toBe(true); expect(new Set(groups.flat().map(t => t.period)).size).toBe(2);
     const html = render(createElement(PlaygroundDiary, { session: s, today: date }));
-    expect(html).toContain("time-range group"); expect(html).toContain("CONFLICT"); expect(html).not.toContain("height:6.25%");
+    expect(html).toContain('aria-label="Time-range group"'); expect(html).toContain("CONFLICT"); expect(html).not.toContain("height:6.25%");
   });
   it.each(["soft", "hard", "expiry"])("invalidates tile-derived drafts and removes occupied projections after %s", reset => {
     let clock = now; const s = active(() => clock); const selection = { date, serviceId: "service-1", staffId: "staff-1", minute: tiles(s)[0].start };
