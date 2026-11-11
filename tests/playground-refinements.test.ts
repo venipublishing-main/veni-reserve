@@ -121,7 +121,7 @@ describe("diary projection, conflicts and shared dates", () => {
     expect(blocks.find(b => b.kind === "busy")).toMatchObject({ start: 585, end: 645, conflict: false });
     expect(blocks.filter(b => b.kind === "closed" && b.staffId === "staff-1").map(b => [b.start, b.end])).toEqual([[0, 540], [1020, 1440]]);
     const html = render(createElement(PlaygroundDiary, { session: s, today: date }));
-    expect(html).toContain('data-time="540"'); expect(html).toContain('data-time="570"'); expect(html).not.toContain("top:0%;height:");
+    expect(html).toContain('data-time="540"'); expect(html).toContain('data-time="570"'); expect(html.match(/class="booking-span"[^>]+/g)?.every(tag => !/top:[^;]+%/.test(tag))).toBe(true);
     expect(html).not.toContain("Readable agenda"); expect(html).toContain("Africa/Johannesburg");
   });
   it("shows busy overlap with appointment and buffer without hiding or moving blocks", () => {

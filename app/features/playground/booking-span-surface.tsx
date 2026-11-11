@@ -6,19 +6,26 @@ import type { CapacityRow } from "./capacity";
 import type { SessionState } from "./session";
 import { staffTheme } from "./personnel";
 import { SpanPreviewInteraction } from "./span-preview";
+import { useTimetableNavigation } from "./use-timetable-navigation";
+import { laneLeft, lanesWidth, LANE_WIDTH, TIME_RAIL, minimapRect, previewPosition, worldToScreen } from "./timetable-camera";
 
 export type SpanSurfaceProps = {
   state: SessionState; rows: CapacityRow[]; people: string[]; range: { start: number; end: number };
-  pitch: number; mode: "click" | "hover"; scope: "day" | "range"; now?: number;
+  pitch: number; mode: "click" | "hover"; scope: "day" | "range"; now?: number; active?: boolean;
   pin: (ids: string[], target: HTMLElement) => void;
   book: (row: CapacityRow, target: HTMLElement) => void;
 };
 /** The same geometry AND event wiring live inside the active surface, including native dialogs. */
-export function BookingSpanSurface({ state, rows, people, range, pitch, mode, scope, now, pin, book }: SpanSurfaceProps) {
+export function BookingSpanSurface({ state, rows, people, range, pitch, mode, scope, now, active = true, pin, book }: SpanSurfaceProps) {
   const root = useRef<HTMLDivElement>(null), previewRef = useRef<HTMLElement>(null);
   const [preview, setPreview] = useState<string[] | null>(null);
-  const [point, setPoint] = useState({ x: 12, y: 12 });
+  const [point, setPoint] = useState({ left: 12, top: 12, width: 300, maxHeight: 220 });
   const [controller] = useState(() => new SpanPreviewInteraction(setPreview, target => target instanceof Node && !!previewRef.current?.contains(target)));
+  const spans = bookingSpans(state, state.diaryDate), scale = dayScale(state, state.diaryDate, pitch);
+  const origin = scale.position(range.start), height = scale.position(range.end) - origin;
+  const world = { width: lanesWidth(people.length), height };
+  const nav = useTimetableNavigation(world, active, controller.navigation);
+  const camera = nav.camera, rect = minimapRect(camera, world, nav.view);
   useEffect(() => { controller.preference(mode); }, [controller, mode]);
   useEffect(() => { controller.dismiss(); }, [controller, state.appointments, state.calendar]);
   useLayoutEffect(() => {
@@ -26,7 +33,7 @@ export function BookingSpanSurface({ state, rows, people, range, pitch, mode, sc
     const anchor = controller.trigger.getBoundingClientRect(), dialog = root.current?.closest("dialog")?.getBoundingClientRect();
     const left = dialog ? dialog.left + 12 : 12, right = dialog ? dialog.right - 12 : window.innerWidth - 12;
     const top = dialog ? dialog.top + 12 : 12, bottom = dialog ? dialog.bottom - 12 : window.innerHeight - 12;
-    setPoint({ x: Math.max(left, Math.min(anchor.right + 4, right - 300)), y: Math.max(top, Math.min(anchor.top, bottom - 220)) });
+    setPoint(previewPosition(anchor, { left, right, top, bottom }));
   }, [preview, controller]);
   useEffect(() => {
     const escape = (e: KeyboardEvent) => controller.escape(e);
@@ -34,24 +41,40 @@ export function BookingSpanSurface({ state, rows, people, range, pitch, mode, sc
     document.addEventListener("keydown", escape, true); document.addEventListener("pointerdown", outside, true);
     return () => { controller.dispose(); document.removeEventListener("keydown", escape, true); document.removeEventListener("pointerdown", outside, true); };
   }, [controller]);
-  const spans = bookingSpans(state, state.diaryDate), scale = dayScale(state, state.diaryDate, pitch);
-  const origin = scale.position(range.start), height = scale.position(range.end) - origin;
   const shown = spans.filter(s => people.includes(s.block.staffId) && spanBounds(s, scale, range));
   const omitted = spans.filter(s => !people.includes(s.block.staffId) && state.config.staff.some(p => p.id === s.block.staffId) && spanBounds(s, scale, range));
-  return <div ref={root} className="span-surface" data-preview-scope={scope}>
+  const offscreen = shown.filter(s => { const x = laneLeft(people.indexOf(s.block.staffId)); return x < camera.x || x + LANE_WIDTH > camera.x + nav.view.width; });
+  const y = (minute: number) => worldToScreen(camera, { x: 0, y: scale.position(minute) - origin }).y;
+  const labelEvery = Math.max(1, Math.ceil(18 / (pitch * camera.zoom)));
+  return <div ref={root} className="span-surface" data-preview-scope={scope} title="">
+    <div className="timetable-tools" aria-label="Timetable navigation">
+      <button type="button" aria-label="Zoom in" onClick={() => nav.zoom(1.25)}>+</button><button type="button" aria-label="Zoom out" onClick={() => nav.zoom(.8)}>-</button>
+      <button type="button" onClick={nav.fit}>Fit day</button><button type="button" onClick={nav.readable}>Readable / reset</button>
+      <button type="button" aria-pressed={nav.hand} onClick={nav.toggleHand}>Hand</button>
+      <button type="button" aria-label="Pan earlier" onClick={() => nav.shift(0, -120)}>Earlier</button><button type="button" aria-label="Pan later" onClick={() => nav.shift(0, 120)}>Later</button>
+      {world.width > nav.view.width && <><button type="button" onClick={() => nav.shift(-126, 0)}>Previous person</button><button type="button" onClick={() => nav.shift(126, 0)}>Next person</button></>}
+    </div>
+    <p className="text-center text-xs">{minutesLabel(range.start)}-{minutesLabel(range.end)} / {camera.zoom < 1 ? "Overview: zoom for labels" : "Readable detail"}</p>
+    <p className="text-xs">Wheel: zoom · Middle-drag: pan · Hand or focused Space-drag · Arrows: pan · Home: fit</p>
+    <div ref={nav.mini} className="timetable-minimap" role="group" aria-label="Whole-day minimap: click or drag to recenter; arrow keys to pan" tabIndex={0} {...nav.miniEvents}>
+      {shown.map(s => { const b = spanBounds(s, scale, range)!; return <i key={s.block.id} style={{ ...staffTheme(state.config, s.block.staffId), left: `${laneLeft(people.indexOf(s.block.staffId)) / Math.max(1, world.width) * 100}%`, width: `${LANE_WIDTH / Math.max(1, world.width) * 100}%`, top: `${b.top / height * 100}%`, height: `${b.height / height * 100}%` }} data-kind={s.block.kind} data-conflict={s.block.conflict || undefined} />; })}
+      <span className="minimap-window" style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` }} />
+    </div>
     {omitted.length > 0 && <p className="text-xs">Other people pages: {new Set(omitted.map(s => s.block.appointmentId ?? s.block.id)).size} occupied items{omitted.some(s => s.block.conflict) ? " / CONFLICT" : ""}. Shared availability includes them.</p>}
-    <div className="span-lane-headings" style={{ gridTemplateColumns: `80px repeat(${people.length}, minmax(0, 1fr))` }}><span>Start</span>{people.map(id => <span key={id} style={staffTheme(state.config, id)} className="capacity-person"><i />{state.config.staff.find(p => p.id === id)?.name}</span>)}</div>
-    <div className="span-grid" style={{ height }}>
-      {scale.parts.filter(p => p.closed && p.start >= range.start && p.end <= range.end).map(p => <div key={p.start} className="span-break" style={{ top: p.top - origin, height: p.height }}>Closed {minutesLabel(p.start)}-{minutesLabel(p.end)}</div>)}
-      {rows.filter(r => r.start >= range.start && r.start < range.end).map(row => {
+    {offscreen.length > 0 && <p className="text-xs">Horizontally offscreen: {new Set(offscreen.map(s => s.block.appointmentId ?? s.block.id)).size} occupied items{offscreen.some(s => s.block.conflict) ? " / CONFLICT" : ""}. Pan or use person controls; availability includes all people.</p>}
+    <div className="span-navigation-frame" style={{ maxWidth: TIME_RAIL + world.width }}>
+    <div className="span-lane-headings"><span>Start</span><div className="span-heading-clip">{people.map((id, i) => <span key={id} style={{ ...staffTheme(state.config, id), left: laneLeft(i) - camera.x, width: LANE_WIDTH }} className="capacity-person"><i />{state.config.staff.find(p => p.id === id)?.name}</span>)}</div></div>
+    <div ref={nav.viewport} className="span-viewport" tabIndex={0} role="group" aria-label="Selected-day timetable: wheel zoom, middle-drag pan" data-dragging={nav.dragging || undefined} data-hand={nav.hand || undefined} {...nav.viewportEvents}>
+      {scale.parts.filter(p => p.closed && p.start >= range.start && p.end <= range.end).map(p => <div key={p.start} className="span-break" aria-label={`Closed ${minutesLabel(p.start)}-${minutesLabel(p.end)}`} style={{ top: y(p.start), height: p.height * camera.zoom }}>{p.height * camera.zoom >= 16 ? `Closed ${minutesLabel(p.start)}-${minutesLabel(p.end)}` : ""}</div>)}
+      {rows.filter(r => r.start >= range.start && r.start < range.end).map((row, i) => {
         const a = rowAvailability(row);
         return <button key={row.start} type="button" data-time={row.start} data-state={a.available ? "Available" : "Blocked"} data-aggregate={a.available || undefined}
-          className="capacity-cell span-time" style={{ top: scale.position(row.start) - origin, height: pitch - 2 }} disabled={!a.available}
+          className="capacity-cell span-time" data-camera-y={scale.position(row.start) - origin} data-camera-height={pitch} style={{ top: y(row.start), height: Math.max(.1, (pitch - 2) * camera.zoom), zIndex: i % labelEvery ? 0 : 1 }} disabled={!a.available}
           aria-label={`${minutesLabel(row.start)}: ${a.available ? `${a.choices.length} eligible practitioners; choose service and practitioner` : "no valid start"}`}
-          onClick={e => { controller.dismiss(); book(row, e.currentTarget); }}><time>{minutesLabel(row.start)}</time></button>;
+          onClick={e => { controller.dismiss(); book(row, e.currentTarget); }}><time style={i % labelEvery ? { visibility: "hidden" } : undefined}>{minutesLabel(row.start)}</time></button>;
       })}
       <div className="span-people">
-        {people.map(id => <div className="span-person-lane" key={id} style={{ width: `${100 / people.length}%` }}>
+        {people.map((id, i) => <div className="span-person-lane" key={id} style={{ left: laneLeft(i) - camera.x, width: LANE_WIDTH }}>
           {shown.filter(s => s.block.staffId === id).map(s => {
             const b = s.block, bounds = spanBounds(s, scale, range)!;
             const appointment = state.appointments.find(a => a.id === b.appointmentId);
@@ -59,16 +82,19 @@ export function BookingSpanSurface({ state, rows, people, range, pitch, mode, sc
             const status = b.kind === "buffer" ? "Buffer" : b.kind === "busy" ? "Busy" : inProgress ? "In progress" : "Booked";
             const label = `${minutesLabel(b.start)}-${minutesLabel(b.end)} ${status}: ${b.label}${b.conflict ? " / CONFLICT" : ""}`;
             return <button key={b.id} type="button" className="booking-span" data-block-id={b.id} data-appointment={b.appointmentId} data-staff={id} data-state={status} data-conflict={b.conflict || undefined}
-              style={{ ...staffTheme(state.config, id), top: bounds.top, height: bounds.height, left: `${s.lane * 100 / s.lanes}%`, width: `${100 / s.lanes}%` }}
-              aria-label={`${label}${bounds.continuedBefore ? "; continues from earlier range" : ""}${bounds.continuedAfter ? "; continues in next range" : ""}`} title={label}
+              data-camera-y={bounds.top} data-camera-height={bounds.height} data-camera-x={laneLeft(i) + s.lane * LANE_WIDTH / s.lanes} data-camera-width={LANE_WIDTH / s.lanes}
+              style={{ ...staffTheme(state.config, id), top: bounds.top * camera.zoom - camera.y, height: bounds.height * camera.zoom, borderWidth: Math.min(b.kind === "busy" ? 3 : 1, bounds.height * camera.zoom / 2), left: s.lane * LANE_WIDTH / s.lanes, width: LANE_WIDTH / s.lanes }}
+              aria-label={`${label}${bounds.continuedBefore ? "; continues from earlier range" : ""}${bounds.continuedAfter ? "; continues in next range" : ""}`}
               {...controller.handlers(s.detailIds, pin)}>
-              <span>{bounds.continuedBefore ? "↑ " : ""}{bounds.height < 32 ? `${b.conflict ? "! " : ""}${status} ` : ""}{minutesLabel(b.start)}-{minutesLabel(b.end)}{bounds.continuedAfter ? " ↓" : ""}</span>{bounds.height >= 32 && <span>{status}{b.conflict ? " / CONFLICT" : ""}</span>}
+              {bounds.height * camera.zoom >= 16 && <span>{bounds.continuedBefore ? "↑ " : ""}{b.conflict ? "! " : ""}{minutesLabel(b.start)}-{minutesLabel(b.end)}{bounds.continuedAfter ? " ↓" : ""}</span>}{bounds.height * camera.zoom >= 32 && <span>{status}{b.conflict ? " / CONFLICT" : ""}</span>}
             </button>;
           })}
         </div>)}
       </div>
     </div>
-    {preview && <aside ref={previewRef} className="span-preview" style={{ left: point.x, top: point.y }} role="region" aria-label="Read-only appointment preview" tabIndex={0}
+    </div>
+    <details className="text-xs"><summary>Timetable guide</summary>Fit day is an overview; zoom or choose Readable for exact labels at dense intervals. All starts and spans remain in the same day. Column widths stay fixed. Ctrl/Meta wheel keeps browser zoom. Touch uses these controls or Agenda. Closed breaks are hatched. Short spans keep exact endpoints in accessible details. Navigation never changes a booking.</details>
+    {preview && <aside ref={previewRef} className="span-preview" style={point} role="region" aria-label="Read-only appointment preview" tabIndex={0}
       onPointerEnter={controller.keep} onPointerLeave={e => { if (!e.currentTarget.contains(document.activeElement)) controller.leave(); }} onFocus={controller.keep}
       onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) controller.leave(); }}>
       {spans.filter(s => preview.includes(s.block.id)).map(({ block: b }) => <p key={b.id}><strong>{minutesLabel(b.start)}-{minutesLabel(b.end)} / {b.kind}</strong><br />{b.label}{b.conflict ? " / CONFLICT" : ""}</p>)}

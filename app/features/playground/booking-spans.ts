@@ -7,7 +7,7 @@ export function dayScale(state: SessionState, date: string, pitch: number) {
   const parts: { start: number; end: number; top: number; height: number; closed: boolean }[] = [];
   let top = 0, previous: number | undefined;
   const interval = state.config.startInterval;
-  if (!Number.isInteger(interval) || interval < 1 || interval > 1440) return { parts, height: 0, position: () => 0 };
+  if (!Number.isInteger(interval) || interval < 1 || interval > 1440) return { parts, height: 0, position: () => 0, minuteAt: () => 0 };
   for (const p of dayPeriods(state.config.hours, date)) {
     if (previous !== undefined && previous < p.opens) { parts.push({ start: previous, end: p.opens, top, height: 24, closed: true }); top += 24; }
     for (let minute = p.opens; minute < p.closes; minute += interval) {
@@ -20,7 +20,12 @@ export function dayScale(state: SessionState, date: string, pitch: number) {
     if (part) return part.top + (minute - part.start) / (part.end - part.start) * part.height;
     return !parts.length || minute < parts[0].start ? 0 : top;
   };
-  return { parts, height: top, position };
+  const minuteAt = (pixel: number) => {
+    const part = parts.find(p => pixel >= p.top && pixel < p.top + p.height);
+    if (part) return part.start + (pixel - part.top) / part.height * (part.end - part.start);
+    return !parts.length ? 0 : pixel < 0 ? parts[0].start : parts.at(-1)!.end;
+  };
+  return { parts, height: top, position, minuteAt };
 }
 export type BookingSpan = { block: DiaryBlock; lane: number; lanes: number; detailIds: string[] };
 /** Allocate a whole appointment+buffer as one unit, across the full day (never per row/range). */

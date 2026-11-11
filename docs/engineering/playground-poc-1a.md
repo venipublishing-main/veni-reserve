@@ -728,3 +728,80 @@ Focused manual acceptance (not yet performed; browser controls remain blocked):
 
 No new screenshots or browser-fit/interaction PASS are claimed. No blocked browser
 mechanism was retried. PR #10 stays draft on the same stacked base; PR #9 is untouched.
+
+## Compact spans, single preview, continuous-day camera (11 November 2026)
+
+PR comment 6796704982 supersedes the range-first navigation above. Same draft PR
+and stacked base; this is a viewer refinement, not a scheduling change.
+
+- [x] Remove native booking `title` text. The surface has an empty title barrier to
+  prevent ancestor inheritance; all exact accessible names and dialog/page headings
+  remain. The existing custom preview is the sole intended hover preview.
+- [x] Fixed 86px time-reference allocation and 120px practitioner lanes with 6px gaps,
+  centred when they fit. Time zoom affects height only, including exact partial
+  buffers; whole-day stable overlap sublanes remain bounded within each person.
+- [x] One logical working day including split breaks, all starts and exact spans.
+  Fit day is default. No range selector or summary-only access to later hours.
+  A dense overview simplifies labels (never font size); Readable/reset restores
+  32px-per-start detail at the beginning. All underlying starts stay present.
+- [x] Plain wheel over the active viewport zooms at the pointer. Normalized pixel,
+  line and page deltas are clamped; one non-passive viewport listener consumes only
+  cancellable plain wheel input. Ctrl/Meta wheel remains browser-owned; forms,
+  previews, other foreground dialogs and outside-page scrolling are excluded.
+- [x] Middle-button drag or Hand/Space-drag pans; pointer capture, grabbing cursor,
+  release/cancel/lost-capture/blur/Escape cleanup and action-click suppression.
+  Local mousedown/auxclick suppression prevents board middle-button defaults only.
+- [x] Screen-sized +/-, Fit day, Readable/reset, Hand, Earlier/Later and person
+  navigation controls; focused viewport arrows/Home/+/-; no global keyboard trap.
+  Whole-day minimap with viewport rectangle supports recenter, capture-based drag
+  and keyboard navigation. Touch uses controls/Agenda or explicit Hand mode.
+- [x] Time rail stays horizontally fixed; staff headings and occupancy share the
+  same horizontal offset. All staff remain in the logical world. Offscreen occupied
+  identity/conflict counts are disclosed; white availability always uses all staff.
+- [x] Navigation cancels delayed/visible previews and pauses new previews until it
+  stops. Screen-coordinate preview placement remains outside the clipped viewport
+  and inside the active dialog layer. Dialog dragging is independent of camera pan.
+  Keyboard focus reveals offscreen items via the camera rather than hidden native
+  scrolling. Reset/expiry unmount the keyed surface, releasing captures/timers and
+  returning the next surface to Fit day with Hand off.
+- [x] Camera state is component-local. No configuration revision, timestamp, booking
+  snapshot or draft validity changes from navigation. All domain regressions remain.
+
+Synthetic evidence: camera forward/inverse and time mapping, exact 60+10 geometry,
+zoom anchoring/clamps, pixel/line/page wheel handling, browser-zoom preservation,
+modal isolation, capture/stop/click suppression, minimap bounds, focus reveal,
+preview navigation pause and screen placement. Shared Day/expanded markup tests
+cover 1/2/3/17 compact lanes, preserved exact accessible names, empty title barrier,
+full-day access and navigation controls. The prior range-selector assertion now
+requires Fit day and the final exact start. The old blanket prohibition on percentage
+positioning is restricted to booking shapes: minimap percentages are intentional.
+
+Browser evidence: NOT PERFORMED. Existing owner screenshots established prior
+problems; they do not prove this correction. No blocked browser mechanism retried.
+The real browser's tooltip, pointer capture/autoscroll, trackpad sensitivity, popup
+focus, touch and viewport fit remain acceptance checks; synthetic events are not a
+substitute for those checks.
+
+Focused mouse/keyboard acceptance:
+
+- [ ] In Day and Expand day, long-hover a booking/buffer: exactly one custom preview,
+  no native tooltip. Move into it; pin, Escape and confirm focus without reopening.
+- [ ] Check compact 1/2/3-person lanes; a 60-minute service + 10-minute buffer keeps
+  exact aligned endpoints at Fit day and Readable. Red staff colour is not conflict.
+- [ ] Wheel at several times/edges: the pointed time stays anchored except at clamp
+  bounds. Try fine trackpad deltas. Ctrl/Meta wheel zooms the browser; outside/form/
+  preview wheel scrolls normally. Background Day cannot move behind an open dialog.
+- [ ] Hold middle-drag vertically/horizontally: grabbing, no native autoscroll, no
+  booking/details after release. Test cancel, lost capture, window blur and Escape.
+- [ ] Use +/-/Fit/Readable, minimap click/drag, Earlier/Later/person buttons, keyboard
+  arrows/Home and Hand/Space-drag. Confirm last hours, split breaks, exceptions,
+  offscreen conflicts and all-person availability remain reachable without ranges.
+- [ ] Open/reposition a dialog, cancel/book through ordinary controls, then reset or
+  expire during navigation/preview. Verify cleanup, draft safety and no console errors.
+
+References reviewed: MDN [title inheritance](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/title),
+[wheel events](https://developer.mozilla.org/en-US/docs/Web/API/Element/wheel_event),
+[auxclick defaults](https://developer.mozilla.org/en-US/docs/Web/API/Element/auxclick_event).
+No hosted changes, real integrations, persistence, new dependencies or paid resources.
+
+Validation: pinned typecheck, lint, all 309 tests across 13 files, and build PASS. Actual browser acceptance remains pending.

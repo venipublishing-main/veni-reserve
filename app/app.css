@@ -114,3 +114,28 @@ body {
 .span-break { position: absolute; inset-inline: 0; background: repeating-linear-gradient(135deg,#e2e8f0 0 5px,#f1f5f9 5px 8px); font-size: 12px; text-align: center; }
 .span-preview { position: fixed; z-index: 5; width: 300px; max-width: calc(100vw - 32px); max-height: 220px; overflow: auto; border: 1px solid #64748b; border-radius: 10px; background: white; color: #0f172a; padding: 12px; box-shadow: 0 4px 20px #0003; font-size: 14px; }
 .span-preview button { border: 1px solid #64748b; border-radius: 6px; padding: 4px 8px; margin: 6px 6px 0 0; }
+
+/* Time-only zoom: screen-sized compact lanes, controls and previews never scale. */
+.span-surface { width: 100%; }
+.span-navigation-frame { width: 100%; margin-inline: auto; }
+.span-lane-headings { display: grid; grid-template-columns: 80px minmax(0, 1fr); height: 34px; gap: 6px; margin-bottom: 4px; }
+.span-heading-clip { position: relative; overflow: hidden; }
+.span-heading-clip .capacity-person { position: absolute; top: 0; height: 34px; line-height: 16px; }
+.span-viewport { height: clamp(180px, 38dvh, 520px); position: relative; overflow: clip; outline-offset: 2px; }
+.span-viewport:focus-visible { outline: 2px solid #0f172a; }
+.span-viewport[data-hand=true] { cursor: grab; touch-action: none; }
+.span-viewport[data-dragging=true], .span-viewport[data-dragging=true] * { cursor: grabbing !important; user-select: none; }
+.span-viewport[data-hand=true] button { cursor: grab; }
+.span-people { display: block; overflow: clip; inset: 0 0 0 86px; }
+.span-person-lane { position: absolute; height: 100%; }
+.span-time { padding: 0; min-height: 0; border-width: 0.5px; }
+.span-time time { line-height: 16px; }
+.timetable-tools { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; font-size: 12px; }
+.timetable-tools button { background: white; border: 1px solid #64748b; border-radius: 6px; padding: 3px 7px; }
+.timetable-tools button[aria-pressed=true] { background: #cbd5e1; }
+.timetable-minimap { position: relative; height: 44px; width: min(100%, 240px); margin: 5px auto; background: #e2e8f0; cursor: crosshair; touch-action: none; }
+.timetable-minimap i { position: absolute; background: var(--staff-booking); pointer-events: none; }
+.timetable-minimap i[data-kind=buffer] { background: var(--staff-buffer); }
+.timetable-minimap i[data-kind=busy] { background: #7c3aed; }
+.timetable-minimap i[data-conflict=true] { background-image: repeating-linear-gradient(135deg,transparent 0 2px,#fff 2px 3px); }
+.minimap-window { position: absolute; border: 2px solid #0f172a; background: #ffffff30; pointer-events: none; }

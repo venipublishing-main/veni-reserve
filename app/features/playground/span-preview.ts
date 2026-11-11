@@ -9,6 +9,7 @@ export class SpanPreviewInteraction {
   private mode: "click" | "hover" = "click";
   private suppressed: HTMLElement | null = null;
   private restoring = false;
+  private navigating = false;
   trigger: HTMLElement | null = null;
   ids: string[] = [];
   constructor(private show: (ids: string[] | null) => void, private previewContains: (target: EventTarget | null) => boolean) {
@@ -16,7 +17,7 @@ export class SpanPreviewInteraction {
   }
   preference(mode: "click" | "hover") { this.mode = mode; this.timer.preference(mode); this.pending = false; }
   private enter(ids: string[], target: HTMLElement) {
-    if (this.mode !== "hover" || this.suppressed === target) return;
+    if (this.navigating || this.mode !== "hover" || this.suppressed === target) return;
     this.trigger = target; this.ids = ids; this.pending = true; this.timer.enter(ids);
   }
   dismiss(restore = false) {
@@ -38,5 +39,6 @@ export class SpanPreviewInteraction {
   }
   keep = () => this.timer.keep();
   leave = () => this.timer.leave();
+  navigation = (moving: boolean) => { this.navigating = moving; if (moving) this.dismiss(); };
   dispose() { this.timer.dispose(); this.pending = false; this.active = false; }
 }
