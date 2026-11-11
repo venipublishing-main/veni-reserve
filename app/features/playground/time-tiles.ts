@@ -1,3 +1,4 @@
+import { approvedBufferOverlap } from "./personnel";
 import { dayPeriods } from "./scheduling";
 import { diaryBlocks } from "./diary-projection";
 import type { DiaryBlock } from "./diary-projection";
@@ -23,7 +24,7 @@ export function timeTiles(state: SessionState, date: string, staffId: string,
       const appointmentIds = [...new Set(blocks.flatMap(b => b.appointmentId ? [b.appointmentId] : []))];
       // Expand every covered portion to the same appointment plus exact buffer details.
       const detailIds = all.filter(b => appointmentIds.includes(b.appointmentId ?? "") || blocks.some(x => x.id === b.id)).map(b => b.id);
-      const conflict = blocks.some(a => all.some(b => a.id !== b.id && Math.max(start, a.start, b.start) < Math.min(end, a.end, b.end)));
+      const conflict = blocks.some(a => all.some(b => a.id !== b.id && !approvedBufferOverlap(state, a, b) && Math.max(start, a.start, b.start) < Math.min(end, a.end, b.end)));
       const inProgress = now !== undefined && state.appointments.some(a => appointmentIds.includes(a.id) && now >= a.start && now < a.start + a.durationMinutes * 60_000);
       result.push({ start, end, period, blocks, detailIds, appointmentIds, conflict,
         bookable: validStarts === undefined ? null : starts.has(start),

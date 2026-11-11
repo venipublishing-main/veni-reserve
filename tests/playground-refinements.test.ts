@@ -50,7 +50,7 @@ describe("separate people, workspace roles and bookable staff", () => {
     const c = structuredClone(s.getSnapshot().config); c.services[0].eligibleStaffIds = ["person-3"];
     expect(configurationErrors(c, 2)).toContain("Assign at least one eligible person to every service.");
     const html = render(createElement(PlaygroundDiary, { session: s, today: date }));
-    expect(html).not.toContain("Test reception time tiles"); expect(html).toContain("Test owner time tiles");
+    expect(html).not.toContain('data-staff="person-3"'); expect(html).toContain('data-staff="staff-1"');
   });
   it("retains snapshots and protected time through role, name, bookability and removal edits", () => {
     const s = active(); s.book(date, "service-1", 540, "staff-1"); const original = s.getSnapshot().appointments[0];
@@ -58,7 +58,7 @@ describe("separate people, workspace roles and bookable staff", () => {
     c = editPerson(c, { ...c.people[0], name: "Renamed owner", roles: ["Reception"] }, false); s.update(c);
     expect(s.getSnapshot().appointments[0]).toEqual(original); expect(s.slots(date, "service-1", "staff-1")).toEqual([]);
     let html = render(createElement(PlaygroundDiary, { session: s, today: date }));
-    expect(html).toContain("Exceptions: 2 occupied items"); expect(exceptionBlocks(s.getSnapshot(), date)[0].label).toContain("Test owner"); expect(html).not.toContain("Renamed owner time tiles");
+    expect(html).toContain("Exceptions: 2 occupied items"); expect(exceptionBlocks(s.getSnapshot(), date)[0].label).toContain("Test owner"); expect(html).not.toContain('data-staff="staff-1"');
     c = editPerson(c, c.people[0], true); c.services[0].eligibleStaffIds = [...c.services[0].eligibleStaffIds, "staff-1"]; s.update(c);
     expect(s.slots(date, "service-1", "staff-1").some(slot => slot.startMinute === 570)).toBe(false);
     expect(s.slots(date, "service-1", "staff-1").some(slot => slot.startMinute === 585)).toBe(true);

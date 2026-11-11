@@ -502,3 +502,116 @@ No browser automation was retried. Screenshots, fit/readability, actual focus an
 pointer interaction remain pending owner review. No visual PASS is claimed.
 
 Local validation for this revision: pinned typecheck, lint, all 215 tests across ten files, and build PASS. GitHub CI evidence is recorded on PR #10.
+
+## Current Day: central capacity slab (owner brief, 11 November 2026)
+
+This replaces the practitioner-panel Day default described above. The earlier
+board remains a secondary **By practitioner** view; Agenda remains the list view.
+No owner sketch was included with the supplied text attachment, so this revision
+implements the written time-row/capacity-cell description rather than claiming
+fidelity to an unseen image.
+
+### Architecture and truthful capacity
+
+`capacityRows` joins the exact scheduler-derived starts into one chronological row
+per configured interval and one position per bookable practitioner. The main board
+is a single slab. Where width allows, the same slab folds into two chronological
+columns (read down, then right); it is never separated into practitioner panels or
+scaled by appointment duration. Dense rows become explicitly labelled time ranges
+whose dialog contains every exact row. Closed gaps are not fabricated as capacity.
+
+White cells require a valid shared-scheduler start for the selected service, or at
+least one eligible service when unfiltered. The composer is seeded with a service
+that actually fits. Grey is blocked, not available. Bookings use the person's colour,
+buffers a derived lighter tint/dashed border, busy is violet, and actual conflicts
+use red stripes/text. Exact mixed occupancy remains coloured even where a shorter
+start can fit; its `+ start` marker/details expose that valid start and overall
+capacity counts include it. No colour or bucket grouping grants booking authority.
+
+Long bookings retain one identity/count. Exact intervals, buffers and retained
+exceptions remain available. Public booking, receptionist booking and capacity
+projection use the same scheduler. Previous exact-overlap regressions remain.
+
+### Larger teams and density
+
+Projection and paging are tested with 17 synthetic practitioners. The local setup
+cap remains three people: the brief's conceptual scaling does not silently expand
+that earlier scope. The slab uses bounded people pages based on available width,
+with explicit page/total labels and per-row all-person free-capacity totals. Time
+ranges summarize all people and disclose bookings, buffers, busy and conflicts.
+No extra people's capacity is silently merged into one practitioner's cell.
+
+Capacity panels measure available width/height to bound rows and fold into readable
+chronological columns. Actual desktop/mobile readability still requires browser
+acceptance. Range overlays may scroll; this is not a return to a proportional diary.
+
+### Explicit soft-buffer override simulation
+
+The viewer can select a **Simulated operator**, defaulting to public rules/no
+override. This selects a configured local person, not a real authenticated account.
+`canOverrideBuffer` reads current roles/identity: Staff can override only their own
+bookable-person buffer; Reception/Admin/Owner can override another practitioner's.
+Unknown/public actors cannot override. This is demonstrable local policy, not
+production authorization. Production requires server-side identity/role enforcement.
+
+A buffer cell opens existing details; an eligible operator can review an override
+in the existing composer. The composer has a clear warning and a specific unchecked
+confirmation for the selected person/date/time/service and exact current buffer IDs.
+Changes invalidate the confirmation. Submission rechecks actor permission, current
+buffers, epoch/configuration, duplicate submission and scheduler constraints.
+
+The reception-only path can remove eligible existing soft-buffer intervals from the
+occupied input passed to the shared scheduler. It never removes service time or
+external busy. The candidate's own service+buffer must still fit working hours,
+notice, start grid, eligibility and horizon. Public `slots`/`book` remain strict.
+A confirmed booking records actor and affected buffer IDs in memory. Original buffer
+snapshots are retained; approved soft overlaps are disclosed in details rather than
+mislabelled as hard clashes. Closed-time/hard-service/busy conflicts remain red.
+Cancellation restores the remaining original buffer protection; no hidden trimming.
+
+### Personnel colours and emails
+
+Every person resolves a deterministic assigned default colour; editing stores an
+explicit validated hex value on the person. It remains stable across name/role edits
+and is included in baseline/reset. Appointments retain a colour snapshot; active
+staff cells follow current configuration. Derived foreground contrast and a light
+buffer tint keep states readable. Near-white booking colours receive a darker fill
+so occupied cells cannot masquerade as free white cells; the configured swatch stays.
+
+Email is optional local text and never used for sending, sign-in, OAuth or accounts.
+A blank value resolves to a deterministic name+identity-suffix `example.test` address;
+the suffix distinguishes identical names. Explicit emails remain unchanged on rename.
+The resolved dummy is displayed, not persisted remotely. Baseline retains explicit
+versus blank input; hard reset/expiry clears entered values. Use fictional addresses.
+
+### Regression and manual acceptance
+
+The prior 215 tests are retained. Presentation assertions now target the central
+slab and `data-staff` capacity positions instead of default practitioner-panel names;
+range grouping retains an explicit accessible label. New coverage exercises white
+capacity reduction, blocked eligibility, exact buffer/busy/conflict states, long
+booking identity, partial valid starts, 17-person paging and lossless time grouping;
+public denial, self-only practitioner override, elevated-role override, warning and
+confirmation identity, stale/duplicate/reset drafts, hard-conflict races, colour
+contrast/reset and safe deterministic dummy addresses.
+
+- [ ] At 1366x768 / 1440x900, verify one central chronological slab, time shown once
+  per row, compact centered capacity cells and complete day coverage. No visual PASS
+  until actual screenshots/readability have been reviewed.
+- [ ] Book each of two/three practitioners at the same start. White capacity must
+  reduce and reach zero when no valid start remains. Verify grey near closing/notice.
+- [ ] Inspect long bookings and partial buckets; count once, view exact times, check
+  buffers/busy/conflicts and retained off-grid/removed-person exceptions.
+- [ ] Try public rules, own Staff identity, another Staff identity, then Reception /
+  Admin / Owner. Check buffer permission, explicit warning/unchecked confirmation,
+  refusal of service/busy/closed conflicts, and strict public availability afterward.
+- [ ] Edit staff colours (including near-white) and fictional emails; verify generated
+  `example.test` fallback, colour use, soft-reset restoration and expiry/hard reset.
+- [ ] Check narrow-screen capacity, explicit dense ranges, keyboard/hover details,
+  movable/dockable composer, focus return, reset while open and browser console.
+- [ ] Recheck optional branch/locality/timezone safeguards and both VVB demo routes.
+
+No browser controls were retried. No hosted state, OAuth, email delivery, paid
+resource, persistence, merge or deployment is introduced.
+
+Local validation: pinned typecheck, lint, 238 tests across eleven files, and build PASS. Browser acceptance remains pending.

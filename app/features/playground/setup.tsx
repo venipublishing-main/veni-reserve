@@ -1,3 +1,4 @@
+import { personColour, personEmail } from "./personnel";
 import { HoursEditor } from "./hours-editor";
 import { LocationEditor } from "./location-editor";
 import { useState } from "react";
@@ -41,11 +42,14 @@ export function ConfigurationEditor({ config: c, step, update, upload, timezoneL
       }}>+ Add a service</button>
     </>}
     {step === 2 && <>
-      <p className="text-sm text-slate-600">Add one to three people. Roles are simulated responsibilities, not accounts or permissions. Accepting bookings is a separate choice.</p>
+      <p className="text-sm text-slate-600">Add one to three people. Roles control only local simulated buffer overrides, not accounts or production permissions. Accepting bookings is a separate choice.</p>
       {c.people.map((p, i) => {
         const bookable = c.staff.some(staff => staff.id === p.id);
         return <fieldset key={p.id} className="space-y-3 rounded-2xl border p-4"><legend>Person {i + 1}</legend>
           <label className="block font-medium">Display name<input className={inputClass} maxLength={100} value={p.name} onChange={e => update(editPerson(c, { ...p, name: e.target.value }, bookable))} /></label>
+          <label className="block">Person colour<input type="color" className="ml-3 h-10 w-16" value={personColour(p)} onChange={e => update(editPerson(c, { ...p, colour: e.target.value }, bookable))} /></label>
+          <label className="block">Email (optional, use fictional details)<input type="email" className={inputClass} maxLength={254} autoComplete="off" value={p.email ?? ""} placeholder={personEmail({ ...p, email: "" })} onChange={e => update(editPerson(c, { ...p, email: e.target.value }, bookable))} /></label>
+          <p className="text-xs text-slate-600">{p.email ? "Stored only in this tab. No email or invitation is sent." : `Dummy integration address: ${personEmail(p)}. No account or calendar connection is created.`}</p>
           <fieldset><legend className="font-medium">Simulated workspace roles (choose one or more)</legend>{WORKSPACE_ROLES.map(role => <label className="mr-4 inline-flex items-center gap-2 py-2" key={role}><input type="checkbox" checked={p.roles.includes(role)} onChange={e => update(editPerson(c, { ...p, roles: e.target.checked ? [...p.roles, role] : p.roles.filter(r => r !== role) }, bookable))} />{role}</label>)}</fieldset>
           <label className="flex items-center gap-2"><input type="checkbox" checked={bookable} onChange={e => update(editPerson(c, p, e.target.checked))} />Accepts customer bookings / delivers services</label>
           {c.people.length > 1 && <button type="button" className={buttonClass} onClick={() => { const next = editPerson(c, p, false); update({ ...next, people: next.people.filter(person => person.id !== p.id) }); }}>Remove person {i + 1}</button>}

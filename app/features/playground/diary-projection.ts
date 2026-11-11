@@ -1,3 +1,4 @@
+import { approvedBufferOverlap } from "./personnel";
 import { dayPeriods } from "./scheduling";
 import type { SessionState } from "./session";
 
@@ -9,7 +10,7 @@ export function diaryBlocks(state: SessionState, date: string): DiaryBlock[] {
   const c = state.config, blocks: DiaryBlock[] = [];
   for (const a of state.appointments.filter(a => a.date === date)) {
     blocks.push({ id: a.id, appointmentId: a.id, staffId: a.staffId, start: a.startMinute, end: a.startMinute + a.durationMinutes,
-      kind: "appointment", label: `${a.serviceName} / ${a.staffName} / ${a.customerLabel}`, summary: `${a.serviceName} / ${a.customerLabel}`, conflict: false });
+      kind: "appointment", label: `${a.serviceName} / ${a.staffName} / ${a.customerLabel}`, summary: `${a.serviceName} / ${a.customerLabel}${a.bufferOverride ? " / Buffer override" : ""}`, conflict: false });
     if (a.bufferAfterMinutes) blocks.push({ id: `${a.id}-buffer`, appointmentId: a.id, staffId: a.staffId,
       start: a.startMinute + a.durationMinutes, end: a.startMinute + a.durationMinutes + a.bufferAfterMinutes,
       kind: "buffer", label: `Post-service buffer / ${a.staffName}`, conflict: false });
@@ -35,7 +36,7 @@ export function diaryBlocks(state: SessionState, date: string): DiaryBlock[] {
       cursor = p.closes;
     }
   }
-  return blocks.map(b => ({ ...b, conflict: b.kind !== "closed" && blocks.some(other => other.id !== b.id && overlaps(b, other)) }));
+  return blocks.map(b => ({ ...b, conflict: b.kind !== "closed" && blocks.some(other => other.id !== b.id && overlaps(b, other) && !approvedBufferOverlap(state, b, other)) }));
 }
 /** Overlapping blocks share columns without changing their actual time or duration. */
 export function diaryColumns(blocks: DiaryBlock[]) {

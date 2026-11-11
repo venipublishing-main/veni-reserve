@@ -1,3 +1,4 @@
+import { staffTheme } from "./personnel";
 import { useEffect, useRef, useState } from "react";
 import type { HTMLAttributes } from "react";
 import { minutesLabel } from "../demo/booking";
@@ -59,7 +60,7 @@ export function TimeTileBoard({ session, state, person, serviceId, openDetails, 
   };
   const selectedRange = range && all.find(p => p.person.id === range.staffId);
   return <div ref={board} className="reception-board time-tile-board mt-3 grid min-h-0 flex-1 gap-3" style={{ gridTemplateColumns: `repeat(${Math.max(all.length, 1)}, minmax(0, 1fr))` }}>
-    {all.map(({ person: p, tiles }, index) => <section key={p.id} data-selected={p.id === person} data-family={laneFamily(index)} className="board-person time-person min-w-0 rounded-xl border border-slate-200 p-3" aria-label={`${p.name} time tiles`}>
+    {all.map(({ person: p, tiles }, index) => <section key={p.id} style={staffTheme(state.config, p.id)} data-selected={p.id === person} data-family={laneFamily(index)} className="board-person time-person min-w-0 rounded-xl border border-slate-200 p-3" aria-label={`${p.name} time tiles`}>
       <header className="mb-2 flex items-center justify-between gap-2 text-sm"><strong className="truncate">{p.name}</strong><span className="shrink-0 text-xs">{bookingCount(tiles)} {bookingCount(tiles) === 1 ? "booking" : "bookings"}</span></header>
       <div className="time-tile-grid grid gap-1.5">
         {groupTimeTiles(tiles, limit).map((group, index, groups) => {
@@ -81,7 +82,7 @@ export function TimeTileBoard({ session, state, person, serviceId, openDetails, 
     </section>)}
     {range && selectedRange && <ReceptionDialog movable title={`${selectedRange.person.name}: ${minutesLabel(range.start)}-${minutesLabel(range.end)}`} onClose={() => setRange(null)} returnFocus={trigger.current}>
       <p className="text-sm">All exact configured starts in this range. Occupied tiles open exact appointment and buffer details; ranges never change the booking grid.</p>
-      <div className="time-tile-grid grid gap-2" data-family={laneFamily(all.indexOf(selectedRange))}>
+      <div className="time-tile-grid grid gap-2" style={staffTheme(state.config, selectedRange.person.id)} data-family={laneFamily(all.indexOf(selectedRange))}>
         {selectedRange.tiles.filter(t => t.start >= range.start && t.start < range.end).map((tile, index, tiles) => <div className="contents" key={tile.start}>
           {index > 0 && tiles[index - 1].period !== tile.period && <p className="col-span-full text-xs">Break {minutesLabel(tiles[index - 1].end)}-{minutesLabel(tile.start)}</p>}
           {renderTile(tile, range.staffId, true)}

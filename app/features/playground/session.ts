@@ -1,3 +1,4 @@
+import { canOverrideBuffer, personColour } from "./personnel";
 import { defaultHours, dayPeriods, validHours } from "./scheduling";
 import type { WeeklyHours } from "./scheduling";
 import { offlineLocalities } from "./localities";
@@ -10,7 +11,7 @@ import type { ReceptionAppointment } from "../booking/reception-experience";
 
 export const SESSION_POLICY = { inactivityMs: 60 * 60_000, warningMs: 5 * 60_000 } as const;
 export const WORKSPACE_ROLES = ["Owner", "Admin", "Reception", "Staff"] as const;
-export type TeamPerson = { id: string; name: string; roles: (typeof WORKSPACE_ROLES)[number][] };
+export type TeamPerson = { id: string; name: string; colour?: string; email?: string; roles: (typeof WORKSPACE_ROLES)[number][] };
 export type Configuration = {
   business: { name: string; category: string; timezone: string; timezoneSource?: "locality" | "manual" };
   location: { id: string; name: string; address: string; localityId: string };
@@ -22,7 +23,7 @@ export type Configuration = {
   hours: WeeklyHours; startInterval: number;
   theme: { primary: string; accent: string; logoUrl?: string };
 };
-export type SimulatedAppointment = ReceptionAppointment & { start: number; end: number; locationId: string };
+export type SimulatedAppointment = ReceptionAppointment & { start: number; end: number; locationId: string; staffColour?: string; bufferOverride?: { actorId: string; appointmentIds: string[] } };
 export type SessionState = {
   phase: "setup" | "active"; step: number; view: "booking" | "reception" | "configure";
   config: Configuration; baseline: Configuration | null; appointments: SimulatedAppointment[];
@@ -50,7 +51,7 @@ export function validTimezone(zone: string) {
 /** Keep one identity while independently editing simulated roles and booking settings. */
 export function editPerson(c: Configuration, person: TeamPerson, bookable: boolean): Configuration {
   const existing = c.staff.find(p => p.id === person.id);
-  return { ...c, people: c.people.map(p => p.id === person.id ? person : p),
+  return { ...c, people: c.people.map(p => p.id === person.id ? { ...person, colour: personColour(person) } : p),
     staff: [...c.staff.filter(p => p.id !== person.id), ...(bookable ? [{
       ...(existing ?? { id: person.id, role: "", locationIds: [c.location.id] }),
       name: person.name, initials: person.name.slice(0, 2).toUpperCase(),
@@ -85,6 +86,8 @@ export function configurationErrors(c: Configuration, step?: number): string[] {
   check(2, new Set(c.people.map(p => p.id)).size === c.people.length && c.people.every(p => p.roles.length > 0 &&
     new Set(p.roles).size === p.roles.length && p.roles.every(role => WORKSPACE_ROLES.includes(role))),
     "Choose at least one simulated workspace role per person; person identities must be unique.");
+  check(2, c.people.every(p => p.colour === undefined || /^#[0-9a-f]{6}$/i.test(p.colour)), "Choose a six-digit colour for each person.");
+  check(2, c.people.every(p => !p.email || (p.email.length <= 254 && /^[^\s<>@]+@[^\s<>@]+\.[^\s<>@]+$/.test(p.email) && !/[\p{Cc}\p{Bidi_Control}]/u.test(p.email))), "Use a valid fictional email or leave it blank for an example.test address.");
   check(2, c.staff.length >= 1 && c.staff.every(p => text(p.name) && p.locationIds.includes(c.location.id) &&
     c.people.some(person => person.id === p.id && person.name === p.name)), "Enable bookings for at least one named person at this location.");
   check(2, new Set(c.staff.map(p => p.id)).size === c.staff.length, "Staff identities must be unique.");
@@ -187,7 +190,11 @@ export class PlaygroundSession implements BookingAdapter {
     if (/^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(date)) &&
       new Date(date).toISOString().slice(0, 10) === date && this.touch()) this.emit({ ...this.state, diaryDate: date });
   }
-  slots(date: string, serviceId: string, staffId: string) {
+  slots(date: string, serviceId: string, staffId: string) { return this.calculateSlots(date, serviceId, staffId); }
+  receptionSlots(date: string, serviceId: string, staffId: string, actorId: string) {
+    return canOverrideBuffer(this.state.config, actorId, staffId) ? this.calculateSlots(date, serviceId, staffId, actorId) : this.slots(date, serviceId, staffId);
+  }
+  private calculateSlots(date: string, serviceId: string, staffId: string, actorId?: string) {
     const s = this.state, c = s.config;
     if (s.phase !== "active" || this.clock() - s.lastActivity >= this.policy.inactivityMs || configurationErrors(c).length) return [];
     const today = todayInTimeZone(new Date(this.clock()), c.business.timezone);
@@ -197,14 +204,30 @@ export class PlaygroundSession implements BookingAdapter {
     return dayPeriods(c.hours, date).flatMap(period => availableSlots({ service, staffId, staffIds: c.staff.filter(p => p.locationIds.includes(c.location.id)).map(p => p.id),
       opens: period.opens, closes: period.closes, interval: c.startInterval, earliest: this.clock() + 120 * 60_000,
       instant: dayClock(date, c.business.timezone), occupied: [
-        ...s.appointments.map(a => ({ staffId: a.staffId, start: a.start, end: a.end })),
+        ...s.appointments.map(a => ({ staffId: a.staffId, start: a.start, end: actorId && canOverrideBuffer(c, actorId, a.staffId) ? a.start + a.durationMinutes * 60_000 : a.end })),
         ...simulatedCalendar(s.calendar).busyIntervals(),
       ] }));
   }
   book(date: string, serviceId: string, minute: number, staffId: string): string | null {
+    return this.commitBooking(date, serviceId, minute, staffId);
+  }
+  bufferTouches(date: string, serviceId: string, minute: number, staffId: string): string[] {
+    const c = this.state.config, service = c.services.find(s => s.id === serviceId);
+    if (!service || !validTimezone(c.business.timezone)) return [];
+    const start = dayClock(date, c.business.timezone)(minute); if (start === null) return [];
+    const end = start + (service.durationMinutes + service.bufferAfterMinutes) * 60_000;
+    return this.state.appointments.filter(a => a.staffId === staffId && a.bufferAfterMinutes > 0 && start < a.end && end > a.start + a.durationMinutes * 60_000).map(a => a.id).sort();
+  }
+  receptionBook(date: string, serviceId: string, minute: number, staffId: string, actorId: string, confirmedBufferIds: string[]): string | null {
+    if (!canOverrideBuffer(this.state.config, actorId, staffId)) return "This simulated operator cannot override this person's buffers.";
+    const current = this.bufferTouches(date, serviceId, minute, staffId);
+    if (!current.length || JSON.stringify(current) !== JSON.stringify([...new Set(confirmedBufferIds)].sort())) return "Buffers changed or confirmation is missing. Review the warning again.";
+    return this.commitBooking(date, serviceId, minute, staffId, { actorId, appointmentIds: current });
+  }
+  private commitBooking(date: string, serviceId: string, minute: number, staffId: string, override?: { actorId: string; appointmentIds: string[] }): string | null {
     if (!this.touch()) return "Session expired. Start again.";
     if (this.state.appointments.length >= 200) return "This playground allows 200 synthetic appointments. Cancel or reset to continue.";
-    const slot = this.slots(date, serviceId, staffId).find(s => s.startMinute === minute);
+    const slot = (override ? this.receptionSlots(date, serviceId, staffId, override.actorId) : this.slots(date, serviceId, staffId)).find(s => s.startMinute === minute);
     if (!slot) return "That time is no longer available. Please choose another slot.";
     const c = this.state.config, service = c.services.find(s => s.id === serviceId)!, person = c.staff.find(p => p.id === slot.staffId)!;
     const start = dayClock(date, c.business.timezone)(minute)!;
@@ -213,7 +236,8 @@ export class PlaygroundSession implements BookingAdapter {
       id, date, startMinute: minute, durationMinutes: service.durationMinutes, bufferAfterMinutes: service.bufferAfterMinutes,
       staffId: slot.staffId, serviceId, locationId: c.location.id, customerLabel: `Synthetic visitor ${this.state.nextId}`,
       status: "scheduled", start, end: start + (service.durationMinutes + service.bufferAfterMinutes) * 60_000,
-      serviceName: service.name, staffName: person.name,
+      serviceName: service.name, staffName: person.name, staffColour: personColour(c.people.find(p => p.id === person.id)!),
+      ...(override ? { bufferOverride: override } : {}),
     }] });
     return null;
   }

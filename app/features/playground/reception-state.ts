@@ -9,11 +9,11 @@ export class ReceptionDraft {
   constructor(private session: PlaygroundSession) {
     this.epoch = session.getSnapshot().epoch; this.revision = session.getSnapshot().configRevision;
   }
-  submit(selection: BookingSelection) {
+  submit(selection: BookingSelection, override?: { actorId: string; confirmedBufferIds: string[] }) {
     if (this.session.checkExpiry() || this.session.getSnapshot().epoch !== this.epoch || this.session.getSnapshot().phase !== "active") return "This composer expired or was reset. Open a new booking.";
     if (this.submitted) return "This booking has already been submitted.";
     if (this.session.getSnapshot().configRevision !== this.revision) return "Configuration changed. Close this composer and review a new booking.";
-    const error = this.session.book(selection.date, selection.serviceId, selection.minute, selection.staffId);
+    const error = override ? this.session.receptionBook(selection.date, selection.serviceId, selection.minute, selection.staffId, override.actorId, override.confirmedBufferIds) : this.session.book(selection.date, selection.serviceId, selection.minute, selection.staffId);
     if (!error) this.submitted = true;
     return error;
   }

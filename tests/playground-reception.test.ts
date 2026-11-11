@@ -98,7 +98,7 @@ describe("compact board projection without a second availability engine", () => 
     const before = diaryBlocks(s.getSnapshot(), date), c = structuredClone(s.getSnapshot().config); c.startInterval = 1; s.update(c);
     expect(diaryBlocks(s.getSnapshot(), date)).toEqual(before);
     const html = render(createElement(PlaygroundDiary, { session: s, today: date }));
-    expect(html).toContain("1 booking"); expect(html).toContain("CONFLICT"); expect(html).toContain("Fictional maker time tiles");
+    expect(html).toContain("1 booking"); expect(html).toContain("CONFLICT"); expect(html).toContain("Central day capacity slab");
   });
 });
 
