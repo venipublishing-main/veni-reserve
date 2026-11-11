@@ -8,7 +8,7 @@ export function ReceptionDialog({ title, children, onClose, movable = false, ret
   const ref = useRef<HTMLDialogElement>(null);
   const [point, setPoint] = useState<{ x: number; y: number } | null>(null);
   const drag = useRef(new DialogDrag());
-  const desktop = () => window.matchMedia("(min-width: 1025px) and (any-pointer: fine)").matches;
+  const desktop = () => window.matchMedia("(min-width: 1025px) and (pointer: fine)").matches;
   const move = (x: number, y: number) => {
     const box = ref.current!.getBoundingClientRect();
     setPoint(clampPosition({ x, y }, { width: window.innerWidth, height: window.innerHeight }, box));

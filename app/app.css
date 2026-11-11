@@ -59,7 +59,7 @@ body {
 .reception-dialog { inset: auto; }
 .reception-drag-handle { user-select: none; }
 .reception-position-controls, .reception-drag-hint { display: none; }
-@media (min-width: 1025px) and (any-pointer: fine) {
+@media (min-width: 1025px) and (pointer: fine) {
   .reception-position-controls { display: flex; flex-wrap: wrap; }
   .reception-drag-hint { display: block; }
 }
