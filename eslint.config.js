@@ -5,6 +5,7 @@ export default tseslint.config(
   {
     ignores: [
       "build/**",
+      "dist/playground-preview/**",
       "coverage/**",
       ".react-router/**",
       ".wrangler/**",

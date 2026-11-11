@@ -26,6 +26,18 @@ jobs:
       - run: pnpm lint
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm build:playground-preview
+      - name: Built preview HTTP boundary
+        timeout-minutes: 2
+        run: |
+          setsid pnpm exec wrangler dev --config preview/wrangler.json --ip 127.0.0.1 --port 5182 --local > /tmp/playground-preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill -- "-$preview_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:5182/version.json > /dev/null; then break; fi
+            sleep 1
+          done
+          node preview/smoke.mjs http://127.0.0.1:5182
 
   database-security:
     name: database-security
