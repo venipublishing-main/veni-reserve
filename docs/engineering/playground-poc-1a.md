@@ -699,7 +699,7 @@ remove-white/reflow rule, following PR comment 6795746966 and the updated sketch
   dispose/dismiss previews; existing reset/expiry and stale booking rules remain.
 - [x] No scheduling-engine, persistence, dependency or hosted-service changes.
 
-Automated evidence: pinned typecheck, lint, 271 tests across 12 files, build PASS.
+Automated evidence: pinned typecheck, lint, 272 tests across 12 files, build PASS.
 Fixtures cover the owner sketch, one-hour service/10-minute buffer, full-capacity
 rail, off-grid geometry, same-person overlap, stable continuation/lane identities,
 people paging, split breaks and exceptions. Shared real event handlers are exercised

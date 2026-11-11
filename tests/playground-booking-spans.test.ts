@@ -17,13 +17,18 @@ function fixture(duration = 30, buffer = 15) {
   c.services[0] = { ...c.services[0], name: "Synthetic service", durationMinutes: duration, bufferAfterMinutes: buffer, eligibleStaffIds: ["a", "b"] };
   const s = new PlaygroundSession(() => now); s.update(c); expect(s.complete()).toEqual([]); s.selectDiaryDate(date); return s;
 }
-function html(s: PlaygroundSession, scope: "day" | "range" = "day", people = ["a", "b"]) {
+function html(s: PlaygroundSession, scope: "day" | "range" = "day", people = ["a", "b"], instant?: number) {
   const state = s.getSnapshot();
-  const surface = createElement(BookingSpanSurface, { state, rows: capacityRows(s, state, date), people, range, pitch: 30, scope, mode: "hover", pin: () => {}, book: () => {} });
+  const surface = createElement(BookingSpanSurface, { state, rows: capacityRows(s, state, date), people, range, pitch: 30, scope, mode: "hover", now: instant, pin: () => {}, book: () => {} });
   return renderToStaticMarkup(scope === "day" ? surface : createElement(ReceptionDialog, { title: "Capacity", onClose: () => {}, returnFocus: null, children: surface }));
 }
 afterEach(() => vi.useRealTimers());
 describe("continuous service and buffer geometry", () => {
+  it("marks only the exact active appointment in progress when two bookings share a display interval", () => {
+    const s = fixture(5, 0), c = structuredClone(s.getSnapshot().config); c.startInterval = 5; s.update(c);
+    s.book(date, "service-1", 540, "a"); s.book(date, "service-1", 545, "a"); c.startInterval = 15; s.update(c);
+    for (const scope of ["day", "range"] as const) { const rendered = html(s, scope, ["a"], Date.parse("2026-11-11T07:02:00Z")); expect(rendered.match(/data-state="In progress"/g)).toHaveLength(1); expect(rendered.match(/data-state="Booked"/g)).toHaveLength(1); }
+  });
   it("matches the owner sketch with one service shape and one buffer per booking in stable lanes", () => {
     const s = fixture(); expect(s.book(date, "service-1", 540, "a")).toBeNull();
     const c = structuredClone(s.getSnapshot().config); c.services[0].durationMinutes = 15; s.update(c);

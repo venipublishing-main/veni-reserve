@@ -9,12 +9,12 @@ import { SpanPreviewInteraction } from "./span-preview";
 
 export type SpanSurfaceProps = {
   state: SessionState; rows: CapacityRow[]; people: string[]; range: { start: number; end: number };
-  pitch: number; mode: "click" | "hover"; scope: "day" | "range";
+  pitch: number; mode: "click" | "hover"; scope: "day" | "range"; now?: number;
   pin: (ids: string[], target: HTMLElement) => void;
   book: (row: CapacityRow, target: HTMLElement) => void;
 };
 /** The same geometry AND event wiring live inside the active surface, including native dialogs. */
-export function BookingSpanSurface({ state, rows, people, range, pitch, mode, scope, pin, book }: SpanSurfaceProps) {
+export function BookingSpanSurface({ state, rows, people, range, pitch, mode, scope, now, pin, book }: SpanSurfaceProps) {
   const root = useRef<HTMLDivElement>(null), previewRef = useRef<HTMLElement>(null);
   const [preview, setPreview] = useState<string[] | null>(null);
   const [point, setPoint] = useState({ x: 12, y: 12 });
@@ -54,7 +54,9 @@ export function BookingSpanSurface({ state, rows, people, range, pitch, mode, sc
         {people.map(id => <div className="span-person-lane" key={id} style={{ width: `${100 / people.length}%` }}>
           {shown.filter(s => s.block.staffId === id).map(s => {
             const b = s.block, bounds = spanBounds(s, scale, range)!;
-            const status = b.kind === "buffer" ? "Buffer" : b.kind === "busy" ? "Busy" : rows.some(r => r.cells.some(c => c.staffId === id && c.tile.inProgress && c.tile.appointmentIds.includes(b.appointmentId ?? ""))) ? "In progress" : "Booked";
+            const appointment = state.appointments.find(a => a.id === b.appointmentId);
+            const inProgress = now !== undefined && appointment && now >= appointment.start && now < appointment.start + appointment.durationMinutes * 60_000;
+            const status = b.kind === "buffer" ? "Buffer" : b.kind === "busy" ? "Busy" : inProgress ? "In progress" : "Booked";
             const label = `${minutesLabel(b.start)}-${minutesLabel(b.end)} ${status}: ${b.label}${b.conflict ? " / CONFLICT" : ""}`;
             return <button key={b.id} type="button" className="booking-span" data-block-id={b.id} data-appointment={b.appointmentId} data-staff={id} data-state={status} data-conflict={b.conflict || undefined}
               style={{ ...staffTheme(state.config, id), top: bounds.top, height: bounds.height, left: `${s.lane * 100 / s.lanes}%`, width: `${100 / s.lanes}%` }}

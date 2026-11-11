@@ -40,7 +40,7 @@ export function CapacityBoard({ session, state, serviceId, actorId, openDetails,
     openDetails(ids, expanded ? trigger.current ?? target : target, candidate); setExpanded(false);
   };
   const surface = (overlay: boolean) => <BookingSpanSurface key={`${index}:${pageInfo.index}:${limit}:${size}:${overlay ? "range" : "day"}`}
-    state={state} rows={rows} people={pageInfo.items.map(p => p.id)} range={range} pitch={overlay ? 44 : 28} mode={!overlay && (expanded || suspended) ? "click" : mode} scope={overlay ? "range" : "day"} pin={pin}
+    state={state} rows={rows} people={pageInfo.items.map(p => p.id)} range={range} pitch={overlay ? 44 : 28} mode={!overlay && (expanded || suspended) ? "click" : mode} scope={overlay ? "range" : "day"} now={now} pin={pin}
     book={(row, target) => { const first = rowAvailability(row).choices[0]; if (!first) return; openComposer(overlay ? trigger.current ?? target : target, first.staffId, row.start, { serviceId: first.serviceId, actorId, aggregateAvailability: true }); setExpanded(false); }} />;
   return <div ref={ref} className="reception-board capacity-board mt-3 flex min-h-0 flex-1 flex-col rounded-xl border bg-slate-50 p-3" aria-label="Central day capacity slab">
     <p className="text-xs">{summary.bookings} {summary.bookings === 1 ? "booking" : "bookings"}. White = at least one valid start across all people; neutral = no valid start. Colour = booking; lighter dashed = buffer; stripes + CONFLICT = actual overlap.{summary.conflict ? " CONFLICT present today." : ""}</p>
