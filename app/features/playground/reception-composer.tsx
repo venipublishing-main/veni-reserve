@@ -1,6 +1,6 @@
 import { availablePeople } from "./capacity";
 import { canOverrideBuffer } from "./personnel";
-import { useState, useSyncExternalStore } from "react";
+import { useRef, useState, useSyncExternalStore } from "react";
 import type { PlaygroundSession } from "./session";
 import { ReceptionDraft } from "./reception-state";
 import { ReceptionDialog } from "./reception-dialog";
@@ -11,6 +11,8 @@ export function ReceptionComposer({ session, seed, onClose, returnFocus }: {
   session: PlaygroundSession; seed: ComposerSeed; onClose: () => void; returnFocus: HTMLElement | null;
 }) {
   const state = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot), c = state.config;
+  const personField = useRef<HTMLSelectElement>(null), dateField = useRef<HTMLInputElement>(null);
+  const [anchored, setAnchored] = useState(!!seed.aggregateAvailability);
   const [draft] = useState(() => new ReceptionDraft(session));
   const [date, setDate] = useState(seed.date), [staffId, setStaff] = useState(seed.staffId);
   const [serviceId, setService] = useState(seed.serviceId ?? c.services.find(s => s.eligibleStaffIds.includes(seed.staffId))?.id ?? "");
@@ -18,9 +20,9 @@ export function ReceptionComposer({ session, seed, onClose, returnFocus }: {
   const [override, setOverride] = useState(!seed.aggregateAvailability && (seed.override ?? false));
   const [confirmation, setConfirmation] = useState("");
   const [complete, setComplete] = useState(false);
-  const allowed = !seed.aggregateAvailability && canOverrideBuffer(c, seed.actorId, staffId);
-  const people = seed.aggregateAvailability ? availablePeople(session, state, date, serviceId, minute) : c.staff;
-  const services = seed.aggregateAvailability ? c.services.filter(s => availablePeople(session, state, date, s.id, minute).length > 0) : c.services.filter(s => s.eligibleStaffIds.includes(staffId));
+  const allowed = !anchored && canOverrideBuffer(c, seed.actorId, staffId);
+  const people = anchored ? availablePeople(session, state, date, serviceId, minute) : c.staff;
+  const services = c.services;
   const service = c.services.find(s => s.id === serviceId), slots = override && allowed ? session.receptionSlots(date, serviceId, staffId, seed.actorId!) : session.slots(date, serviceId, staffId);
   const touched = override ? session.bufferTouches(date, serviceId, minute, staffId) : [];
   const confirmationKey = JSON.stringify([state.epoch, state.configRevision, date, staffId, serviceId, minute, touched]);
@@ -28,16 +30,20 @@ export function ReceptionComposer({ session, seed, onClose, returnFocus }: {
   const valid = slots.some(s => s.startMinute === minute && s.staffId === staffId);
   const field = "mt-1 block w-full rounded-xl border border-slate-300 bg-white p-2.5";
   return <ReceptionDialog title="New synthetic booking" movable onClose={onClose} returnFocus={returnFocus}>
+    {!complete && <nav className="composer-recovery sticky top-0 z-10 flex flex-wrap gap-2 bg-white py-2" aria-label="Change booking selection">
+      <button type="button" className="rounded border p-2" onClick={() => { setError(""); setConfirmation(""); personField.current?.focus(); }}>Back / Change practitioner</button>
+      <button type="button" className="rounded border p-2" onClick={() => { setAnchored(false); setMinute(-1); setError(""); setConfirmation(""); dateField.current?.focus(); }}>Change date &amp; time</button>
+    </nav>}
     {complete ? <div role="status"><h3 className="font-semibold">Booking created</h3><p>Reception and customer availability now reflect this synthetic appointment.</p><button className="mt-3 rounded-xl bg-[var(--booking-primary)] px-4 py-2 text-[var(--booking-on-primary)]" onClick={onClose}>Done</button></div> : <form className="space-y-3" onSubmit={e => {
       e.preventDefault(); const result = needsConfirmation && confirmation !== confirmationKey ? "Confirm the current buffer warning before booking." : draft.submit({ date, staffId, serviceId, minute }, needsConfirmation ? { actorId: seed.actorId ?? "", confirmedBufferIds: touched } : undefined);
       if (result) setError(result); else { setComplete(true); setError(""); }
     }}>
       <p className="text-sm text-slate-600">{c.business.timezone} · Synthetic visitor assigned automatically. Empty board space is a candidate, not a reserved slot.</p>
-      {seed.aggregateAvailability && <p className="text-sm">Shared availability at this time. Only practitioners available for the selected service and start are offered; all rules are rechecked on submission.</p>}
-      <label className="block">Person<select autoFocus className={field} value={staffId} onChange={e => { setStaff(e.target.value); if (!seed.aggregateAvailability) { setService(""); setMinute(-1); } setError(""); }}><option value="">Choose person</option>{seed.aggregateAvailability && staffId && !people.some(p => p.id === staffId) && <option disabled value={staffId}>Previous practitioner no longer available</option>}{people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
-      <label className="block">Service<select className={field} value={serviceId} onChange={e => { setService(e.target.value); if (seed.aggregateAvailability) { const next = availablePeople(session, state, date, e.target.value, minute); if (!next.some(p => p.id === staffId)) setStaff(next[0]?.id ?? ""); } else setMinute(-1); setError(""); }}><option value="">Choose eligible service</option>{seed.aggregateAvailability && serviceId && !services.some(s => s.id === serviceId) && <option disabled value={serviceId}>Previous service no longer available</option>}{services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
-      <div className="grid grid-cols-2 gap-3"><label>Date<input className={field} type="date" value={date} onChange={e => { setDate(e.target.value); setMinute(-1); }} /></label>
-        <label>Available start<select className={field} value={minute} onChange={e => { setMinute(Number(e.target.value)); setError(""); }}><option value={-1}>Choose valid start</option>
+      {anchored && <p className="text-sm">Shared availability at this time. Use Change date & time to release this exact start. Only practitioners available for the selected service and start are offered; all rules are rechecked on submission.</p>}
+      <label className="block">Person<select ref={personField} autoFocus className={field} value={staffId} onChange={e => { const next = e.target.value; setStaff(next); const compatible = c.services.find(s => s.id === serviceId && s.eligibleStaffIds.includes(next)); if (!compatible) setService(""); if (!anchored && !session.slots(date, serviceId, next).some(s => s.startMinute === minute)) setMinute(-1); setConfirmation(""); setError(""); }}><option value="">Choose person</option>{staffId && !people.some(p => p.id === staffId) && <option disabled value={staffId}>Previous practitioner no longer available</option>}{people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
+      <label className="block">Service<select className={field} value={serviceId} onChange={e => { setService(e.target.value); const next = anchored ? availablePeople(session, state, date, e.target.value, minute) : c.staff.filter(p => c.services.find(s => s.id === e.target.value)?.eligibleStaffIds.includes(p.id)); if (!next.some(p => p.id === staffId)) setStaff(next[0]?.id ?? ""); if (!anchored && !session.slots(date, e.target.value, staffId).some(s => s.startMinute === minute)) setMinute(-1); setConfirmation(""); setError(""); }}><option value="">Choose eligible service</option>{serviceId && !services.some(s => s.id === serviceId) && <option disabled value={serviceId}>Previous service no longer available</option>}{services.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+      <div className="grid grid-cols-2 gap-3"><label>Date<input className={field} ref={dateField} disabled={anchored} type="date" value={date} onChange={e => { setDate(e.target.value); if (!session.slots(e.target.value, serviceId, staffId).some(s => s.startMinute === minute)) setMinute(-1); setError(""); setConfirmation(""); }} /></label>
+        <label>Available start<select disabled={anchored} className={field} value={minute} onChange={e => { setMinute(Number(e.target.value)); setError(""); }}><option value={-1}>Choose valid start</option>
           {!valid && minute >= 0 && <option value={minute}>{minutesLabel(minute)} — candidate unavailable</option>}
           {slots.map(s => <option key={s.startMinute} value={s.startMinute}>{minutesLabel(s.startMinute)}</option>)}
         </select></label></div>
