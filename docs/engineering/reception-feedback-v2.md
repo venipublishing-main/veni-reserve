@@ -130,6 +130,31 @@ Regression evidence includes pure domain tests, source/SSR assertions, camera/po
 
 Revision validation: typecheck, lint, all 360 tests across 18 files, main build and isolated preview build/artifact verification passed. The existing React Router use-client bundler warning remains non-blocking. The final PR handoff records the committed SHA, exact-head CI and local HTTP results. The generated version manifest identifies the served commit. **NOT DEPLOYED**; owner review and separate publication approval remain required.
 
+## Floating multi-pins and Month direct booking revision
+
+Scope: [PR #12 comment 6825437203](https://github.com/venipublishing-main/veni-reserve/pull/12#issuecomment-6825437203), following reviewed source `1e7b3ee752e61073ff41ef1841d3a1e0f83cede9`. Same draft PR, branch and stacked base. Owner acceptance of Day/Week/Month/By practitioner is recorded in that comment; this revision preserves their timetable and scheduling behavior.
+
+- [x] Replace appointment and day-summary modal pins with shared non-modal regions portalled outside the timetable's clipping/zoom. No showModal, backdrop, inertness or focus trap is introduced by pins. Booking, Move, help and actual modal workflows retain ReceptionDialog.
+- [x] Retain up to eight distinct pins with duplicate focusing, independent positions, foreground order, Close all and an explicit no-eviction limit message. Appointment/buffer IDs follow live records across moves; removed/cancelled records show unavailable state. Buffer-only references retain their appointment association. Busy references use session object identity and never silently attach to a reconnected replacement.
+- [x] Weak session ownership keeps pins through date/view and configuration navigation; hard reset, soft baseline reset and expiry clear references/positions. No storage, URL persistence or server state. DOM opener references exist only for focus restoration, never record identity.
+- [x] Header drag uses pointer capture, viewport clamping and cancellation on release/lost capture/blur/resize/unmount/modal opening. Header arrows/Home and dock/recentre controls provide alternatives. Escape targets one active/focused pin and respects foreground modals and handled preview/gesture events. Header dragging has no booking or cancellation action.
+- [x] Narrow/coarse-pointer screens retain all pins in a selector tray with one foreground panel. Minimise exposes the timetable; Show pins restores comparison. Desktop supports simultaneous panels. Long content scrolls inside each panel, and full dates/titles remain visible.
+- [x] Month pinned summaries add New booking alongside Open day/Open week, passing the pinned ISO date and valid current service/operator into the existing composer without changing Month. No start is assumed. Closed/no-slot/horizon failures remain recoverable using Back/change-date controls and the same scheduler. Counts and pins derive from the current session after booking, moves and cancellation.
+- [x] Hover stays delayed/read-only and distinct from persistent pins. Guide/help explains the tray, pin movement, dismissal and Month direct booking. Existing Move permissions, buffer consent and booking snapshot rules are unchanged.
+
+Regression coverage adds manager/lifecycle/identity tests, independent drag primitives, Escape priority, non-modal SSR/source assertions, mobile CSS boundaries, and actual DaySummary action handlers carrying the selected date. Existing calendar markup test now supplies the shared pin callback instead of the removed local modal handlers; its assertions are preserved. These are synthetic tests, not real browser interaction evidence.
+
+Manual acceptance still required:
+
+- [ ] Pin four distinct appointments/dates from Day, Week, Month and By practitioner. Compare concurrently; reopening a source focuses its existing pin. Close one, Close all, reach the eight-pin limit without silent eviction.
+- [ ] Drag each header independently, release outside it, blur/Escape, resize and zoom browser to 200%. Use arrows/Home/dock/recentre. Click timetable controls outside pins and confirm wheel/middle-pan still works. No drag creates a booking/cancellation.
+- [ ] Verify focus is not trapped or stolen from panel controls; Escape closes one pin, while composer Escape closes only its modal. Check click/hover previews and absence of competing native tooltips.
+- [ ] Switch dates/views/configuration and retain pins; move/cancel their sources and see current details or clear removed state. Soft restore, hard reset and expiry clear pins and gestures.
+- [ ] Phone/touch: one readable panel, selector switching, close/minimise/show, accessible content and timetable beneath it.
+- [ ] Month New booking uses the pinned date even after selecting another calendar date; remains in Month. Try closed/outside-horizon/no-slot recovery and successful booking. Confirm all counters, views and availability update.
+
+Final committed-head CI, artifact version and localhost HTTP results are recorded in the PR handoff. **NOT DEPLOYED**. The public preview and retained rollback artifact remain untouched; aesthetic/Theme Studio polish is a separate future scope.
+
 ## Separate release approval and rollback
 
 Current public preview remains `https://vf-reserve-playground.veni-reserve.workers.dev/playground`:

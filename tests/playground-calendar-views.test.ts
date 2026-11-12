@@ -68,7 +68,7 @@ describe("Month is a bounded count/identity overview", () => {
     const a = s.getSnapshot().appointments[0], c = structuredClone(s.getSnapshot().config); c.hours[3] = []; c.staff = []; s.update(c);
     const day = monthOverview(s.getSnapshot(), date).find(d => d.date === date)!;
     expect(day.appointments).toHaveLength(1); expect(day.busy).toHaveLength(1); expect(day.closed).toBe(true); expect(day.appointments[0].retained).toBe(true); expect(day.appointments[0].conflict).toBe(true);
-    const html = renderToStaticMarkup(createElement(MonthBoard, { state: s.getSnapshot(), today: date, mode: "hover", suspended: false, selectDate: vi.fn(), openDay: vi.fn(), openWeek: vi.fn(), openDetails: vi.fn() }));
+    const html = renderToStaticMarkup(createElement(MonthBoard, { state: s.getSnapshot(), today: date, mode: "hover", suspended: false, selectDate: vi.fn(), pinDay: vi.fn() }));
     expect(html).toContain("Markers mean has bookings, not fully booked"); expect(html).toContain(`${a.staffName}: has bookings`); expect(html).toContain("CONFLICT"); expect(html).toContain("Retained"); expect(html).not.toMatch(/title=/);
     expect(s.getSnapshot().appointments[0]).toBe(a);
   });
