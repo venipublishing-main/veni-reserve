@@ -1,5 +1,7 @@
+import { WeekOverview } from "./week-overview";
+import { NavigationHelp, useFirstNavigationHelp } from "./navigation-help";
 import { CapacityBoard } from "./capacity-board";
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ReceptionExperience } from "../booking/reception-experience";
 import { bookingTheme } from "../booking/theme";
 import { addDays, minutesLabel } from "../demo/booking";
@@ -21,11 +23,13 @@ export function PlaygroundDiary({ session, today }: { session: PlaygroundSession
   const state = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot);
   const [actorId, setActorId] = useState("");
   const [serviceId, setServiceId] = useState("");
-  const [view, setView] = useState<"day" | "agenda" | "person">("day");
+  const [view, setView] = useState<"day" | "agenda" | "person" | "week">("day");
   const [person, setPerson] = useState(state.config.staff[0]?.id ?? "");
   const [mode, setMode] = useState<DetailsMode>("click");
   const [preview, setPreview] = useState<string[] | null>(null);
   const [detailCandidate, setDetailCandidate] = useState<ComposerSeed | null>(null);
+  const [detailDate, setDetailDate] = useState(state.diaryDate);
+  const [help, setHelp] = useState(false), helpTrigger = useRef<HTMLButtonElement>(null);
   const [details, setDetails] = useState<string[] | null>(null);
   const [composer, setComposer] = useState<ComposerSeed | null>(null);
   const [message, setMessage] = useState("");
@@ -54,13 +58,18 @@ export function PlaygroundDiary({ session, today }: { session: PlaygroundSession
     };
     document.addEventListener("keydown", dismiss); return () => document.removeEventListener("keydown", dismiss);
   }, [preview, controller]);
-  const openDetails = (ids: string[], target: HTMLElement, candidate?: Partial<ComposerSeed> & { staffId: string; minute: number }) => { controller.dismiss(); opener.current = target; setDetailCandidate(candidate ? { date, ...candidate } : null); setDetails(ids); };
+  const showHelp = useCallback(() => {
+    if (document.querySelector("dialog[open]") || !session.acknowledgeNavigationHelp()) return;
+    controller.dismiss(); setHelp(true);
+  }, [controller, session]);
+  useFirstNavigationHelp(state.phase === "active" && view === "day" && !state.navigationHelpSeen && !details && !composer && !help, showHelp);
+  const openDetails = (ids: string[], target: HTMLElement, candidate?: Partial<ComposerSeed> & { staffId: string; minute: number }) => { controller.dismiss(); opener.current = target; setDetailCandidate(candidate ? { date, ...candidate } : null); setDetailDate(date); setDetails(ids); };
   const openComposer = (target: HTMLElement, staffId = selectedPerson, minute?: number, seed?: Partial<ComposerSeed>) => {
     controller.dismiss(); opener.current = target; setComposer({ date, staffId, minute, serviceId: selectedService || undefined, actorId, ...seed });
   };
   const previewEvents = (ids: string[]) => ({
     onPointerEnter: (e: React.PointerEvent<HTMLElement>) => {
-      if (e.pointerType === "touch" || details || composer || dismissedHoverTrigger.current === e.currentTarget) return;
+      if (e.pointerType === "touch" || help || details || composer || dismissedHoverTrigger.current === e.currentTarget) return;
       const box = e.currentTarget.getBoundingClientRect(); pendingPreviewOpener.current = e.currentTarget;
       setPreviewPoint({ x: Math.max(12, Math.min(box.right + 8, window.innerWidth - 332)), y: Math.max(12, Math.min(box.top, window.innerHeight - 250)) }); controller.enter(ids);
     },
@@ -70,14 +79,14 @@ export function PlaygroundDiary({ session, today }: { session: PlaygroundSession
     },
     onFocus: (e: React.FocusEvent<HTMLElement>) => {
       if (suppressRestoredFocus.current) { suppressRestoredFocus.current = false; return; }
-      if (details || composer) return;
+      if (help || details || composer) return;
       dismissedHoverTrigger.current = null;
       const box = e.currentTarget.getBoundingClientRect(); pendingPreviewOpener.current = e.currentTarget;
       setPreviewPoint({ x: Math.max(12, Math.min(box.right + 8, window.innerWidth - 332)), y: Math.max(12, Math.min(box.top, window.innerHeight - 250)) }); controller.enter(ids);
     },
     onBlur: (e: React.FocusEvent<HTMLElement>) => { if (!document.getElementById("reception-preview")?.contains(e.relatedTarget)) controller.leave(); },
   });
-  const detailItems = (ids: string[], pinned: boolean) => <ul className="space-y-3">{ids.map(id => blocks.find(b => b.id === id)).filter((b): b is DiaryBlock => !!b).map(b => <li key={b.id} className="rounded-xl border border-slate-300 bg-slate-50 p-3 text-sm text-slate-950">
+  const detailItems = (ids: string[], pinned: boolean) => <ul className="space-y-3">{ids.map(id => (pinned ? diaryBlocks(state, detailDate) : blocks).find(b => b.id === id)).filter((b): b is DiaryBlock => !!b).map(b => <li key={b.id} className="rounded-xl border border-slate-300 bg-slate-50 p-3 text-sm text-slate-950">
     <strong>{minutesLabel(b.start)}-{minutesLabel(b.end)} / {b.kind}</strong><p>{b.label}</p>{b.kind === "appointment" && <p>Status: Scheduled</p>}
     {b.appointmentId && state.appointments.find(a => a.id === b.appointmentId)?.bufferOverride && <p className="font-semibold text-amber-900">Confirmed operational buffer override (local simulation). Original buffer snapshots remain.</p>}
     {b.conflict && <p className="font-semibold text-amber-900">Conflict with occupied or closed time. Nothing has moved.</p>}
@@ -92,7 +101,8 @@ export function PlaygroundDiary({ session, today }: { session: PlaygroundSession
         <button className={button} aria-label="Previous day" onClick={() => session.selectDiaryDate(addDays(date, -1))}>&larr;</button>
         <label className="text-sm">Date <input className="rounded-lg border p-1.5" type="date" value={date} onChange={e => session.selectDiaryDate(e.target.value)} /></label>
         <button className={button} aria-label="Next day" onClick={() => session.selectDiaryDate(addDays(date, 1))}>&rarr;</button>
-        {(["day", "agenda", "person"] as const).map(v => <button key={v} aria-pressed={view === v} className={button} style={view === v ? { background: "var(--booking-accent)", color: "var(--booking-on-accent)" } : undefined} onClick={() => { controller.dismiss(); setView(v); }}>{v === "day" ? "Day" : v === "agenda" ? "Agenda" : "By practitioner"}</button>)}
+        {(["day", "week", "agenda", "person"] as const).map(v => <button key={v} aria-pressed={view === v} className={button} style={view === v ? { background: "var(--booking-accent)", color: "var(--booking-on-accent)" } : undefined} onClick={() => { controller.dismiss(); setView(v); }}>{v === "day" ? "Day" : v === "agenda" ? "Agenda" : v === "week" ? "Week" : "By practitioner"}</button>)}
+        <button ref={helpTrigger} className={button} onClick={showHelp}>Navigation help</button>
         <button data-reception-new-booking className={button} onClick={e => openComposer(e.currentTarget)} disabled={!c.staff.length}>+ New booking</button>
       </div>
     </div>
@@ -107,20 +117,25 @@ export function PlaygroundDiary({ session, today }: { session: PlaygroundSession
     {message && <p role="status" className="mt-1 text-xs">{message}</p>}
     {(view === "day" || view === "person") && <>
       {view === "person" && <label className="mt-2 text-sm md:hidden">Person <select className="rounded-lg border bg-white p-2" value={selectedPerson} onChange={e => setPerson(e.target.value)}>{c.staff.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>}
-      {!span ? <div className="flex flex-1 items-center justify-center rounded-xl bg-slate-50 p-5 text-center"><p>Closed on this day. Check exceptions for retained appointments, or choose another date.</p></div> : view === "day" ? <CapacityBoard key={`${state.epoch}:${date}:${state.configRevision}:${selectedService}:${actorId}`} session={session} state={state} serviceId={selectedService} actorId={actorId} openDetails={openDetails} openComposer={openComposer} mode={mode} suspended={!!details || !!composer} /> : <TimeTileBoard key={`${state.epoch}:${date}:${state.configRevision}:${selectedService}`} session={session} state={state} person={selectedPerson} serviceId={selectedService} openDetails={openDetails} openComposer={openComposer} previewEvents={previewEvents} dismissPreview={() => controller.dismiss()} />}
+      {!span ? <div className="flex flex-1 items-center justify-center rounded-xl bg-slate-50 p-5 text-center"><p>Closed on this day. Check exceptions for retained appointments, or choose another date.</p></div> : view === "day" ? <CapacityBoard key={`${state.epoch}:${date}:${state.configRevision}:${selectedService}:${actorId}`} session={session} state={state} serviceId={selectedService} actorId={actorId} openDetails={openDetails} openComposer={openComposer} mode={mode} suspended={help || !!details || !!composer} /> : <TimeTileBoard key={`${state.epoch}:${date}:${state.configRevision}:${selectedService}`} session={session} state={state} person={selectedPerson} serviceId={selectedService} openDetails={openDetails} openComposer={openComposer} previewEvents={previewEvents} dismissPreview={() => controller.dismiss()} />}
 
     </>}
+    {view === "week" && <WeekOverview state={state} today={today} selectWeek={d => session.selectDiaryDate(d)}
+      openDay={d => { controller.dismiss(); session.selectDiaryDate(d); setView("day"); }}
+      openAppointment={(d, ids, target) => { controller.dismiss(); opener.current = target; setDetailDate(d); setDetailCandidate(null); setDetails(ids); }}
+      newBooking={(d, target) => openComposer(target, selectedPerson, undefined, { date: d })} />}
     {view === "agenda" && <div className="mt-3 min-h-0 flex-1 overflow-auto"><ReceptionExperience embedded today={today} selectedDate={date} onDateChange={d => session.selectDiaryDate(d)} business={{ name: c.business.name, descriptor: locationSummary(c), ...c.theme }} people={c.staff} services={c.services}
       appointmentsFor={d => state.appointments.filter(a => a.date === d)} onCancel={id => session.cancel(id)} onBooking={() => { const target = document.querySelector<HTMLElement>("[data-reception-new-booking]"); if (target) openComposer(target); }} bookingActionLabel="New booking" /></div>}
     {visiblePreview && visiblePreview.length > 0 && <aside id="reception-preview" role="region" aria-label="Read-only appointment preview" tabIndex={0}
       className="reception-preview fixed z-40 max-h-56 w-80 overflow-auto rounded-xl border border-slate-300 bg-white p-3 text-slate-900 shadow-xl" style={{ left: previewPoint.x, top: previewPoint.y }}
       onPointerEnter={() => controller.keep()} onPointerLeave={e => { if (!e.currentTarget.contains(document.activeElement)) controller.leave(); }} onFocus={() => controller.keep()} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) controller.leave(); }}>
-      {detailItems(visiblePreview, false)}<div className="mt-2 flex gap-2"><button className={button} onClick={() => { controller.dismiss(); opener.current = previewOpener.current; setDetailCandidate(null); setDetails(visiblePreview); }}>Pin details</button><button className={button} onClick={() => controller.dismiss(() => {
+      {detailItems(visiblePreview, false)}<div className="mt-2 flex gap-2"><button className={button} onClick={() => { controller.dismiss(); opener.current = previewOpener.current; setDetailCandidate(null); setDetailDate(date); setDetails(visiblePreview); }}>Pin details</button><button className={button} onClick={() => controller.dismiss(() => {
         dismissedHoverTrigger.current = previewOpener.current;
         if (previewOpener.current?.isConnected) { suppressRestoredFocus.current = true; previewOpener.current.focus({ preventScroll: true }); }
       })}>Dismiss</button></div>
     </aside>}
-    {details && <ReceptionDialog movable title="Occupied time details" returnFocus={opener.current} onClose={() => setDetails(null)}>{detailItems(details, true)}{detailCandidate && <button className={button} onClick={() => { setDetails(null); openComposer(opener.current!, detailCandidate.staffId, detailCandidate.minute, detailCandidate); }}>{detailCandidate.override ? "Review buffer override at " : "Check start at "}{minutesLabel(detailCandidate.minute ?? 0)}</button>}{!details.some(id => blocks.some(b => b.id === id)) && <p>No occupied items remain.</p>}</ReceptionDialog>}
+    {details && <ReceptionDialog movable title="Occupied time details" returnFocus={opener.current} onClose={() => setDetails(null)}><p className="text-sm">{detailDate} / {c.business.timezone}</p>{detailItems(details, true)}{detailCandidate && <button className={button} onClick={() => { setDetails(null); openComposer(opener.current!, detailCandidate.staffId, detailCandidate.minute, detailCandidate); }}>{detailCandidate.override ? "Review buffer override at " : "Check start at "}{minutesLabel(detailCandidate.minute ?? 0)}</button>}{!details.some(id => diaryBlocks(state, detailDate).some(b => b.id === id)) && <p>No occupied items remain.</p>}</ReceptionDialog>}
+    {help && <NavigationHelp close={() => setHelp(false)} returnFocus={helpTrigger.current} />}
     {composer && <ReceptionComposer session={session} seed={composer} returnFocus={opener.current} onClose={() => { setComposer(null); setMessage("Booking composer closed."); }} />}
   </section>;
 }

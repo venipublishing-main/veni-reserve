@@ -29,6 +29,7 @@ export type SessionState = {
   config: Configuration; baseline: Configuration | null; appointments: SimulatedAppointment[];
   calendar: SimulatedCalendarState;
   diaryDate: string;
+  navigationHelpSeen: boolean;
   lastActivity: number; epoch: number; configRevision: number; nextId: number; notice: string;
 };
 
@@ -108,7 +109,7 @@ function immutable<T>(value: T): T {
 function initial(now: number, epoch = 0, notice = ""): SessionState {
   return immutable({ phase: "setup", step: 0, view: "booking", config: emptyConfiguration(), baseline: null,
     appointments: [], calendar: { connected: false, busy: null }, diaryDate: "", lastActivity: now, epoch,
-    configRevision: 0, nextId: 1, notice });
+    configRevision: 0, nextId: 1, notice, navigationHelpSeen: false });
 }
 
 /** Explicit adapter boundary. Production is deliberately not an implementation of
@@ -186,6 +187,11 @@ export class PlaygroundSession implements BookingAdapter {
     return [];
   }
   view(view: SessionState["view"]) { if (this.touch()) this.emit({ ...this.state, view }); }
+  acknowledgeNavigationHelp() {
+    if (this.state.phase !== "active" || this.checkExpiry()) return false;
+    this.emit({ ...this.state, navigationHelpSeen: true });
+    return true;
+  }
   selectDiaryDate(date: string) {
     if (/^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(date)) &&
       new Date(date).toISOString().slice(0, 10) === date && this.touch()) this.emit({ ...this.state, diaryDate: date });

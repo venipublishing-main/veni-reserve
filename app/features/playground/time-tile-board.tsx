@@ -6,7 +6,7 @@ import { timeButtonClass } from "../booking/time-button";
 import type { PlaygroundSession, SessionState } from "./session";
 import { ReceptionDialog } from "./reception-dialog";
 import { laneFamily, blockPresentation } from "./day-presentation";
-import { bookingCount, groupTimeTiles, tileAction, tileStatus, timeTiles } from "./time-tiles";
+import { bookingCount, groupTimeTiles, tileAction, tileStatus, timeTiles, tileDisplayLimit } from "./time-tiles";
 import type { TimeTile } from "./time-tiles";
 
 type PreviewEvents = Pick<HTMLAttributes<HTMLElement>, "onPointerEnter" | "onPointerLeave" | "onFocus" | "onBlur">;
@@ -17,6 +17,7 @@ export function TimeTileBoard({ session, state, person, serviceId, openDetails, 
   previewEvents: (ids: string[]) => PreviewEvents; dismissPreview: () => void;
 }) {
   const board = useRef<HTMLDivElement>(null), [limit, setLimit] = useState(32);
+  const measuredTileHeight = useRef(76);
   const [range, setRange] = useState<{ staffId: string; start: number; end: number } | null>(null);
   const trigger = useRef<HTMLElement | null>(null);
   const [now, setNow] = useState<number>();
@@ -27,12 +28,14 @@ export function TimeTileBoard({ session, state, person, serviceId, openDetails, 
       const panel = Array.from(root.querySelectorAll<HTMLElement>(".time-person")).find(p => p.getBoundingClientRect().width > 0);
       if (!panel) return;
       const width = panel.getBoundingClientRect().width - 24, height = root.getBoundingClientRect().height;
-      const columns = Math.max(1, Math.floor((width + 6) / 76));
-      // Reserve room for the person header and compact working-period separators.
-      const rows = Math.max(1, Math.floor((height - 108) / 58));
-      setLimit(Math.min(48, Math.max(4, columns * rows)));
+      // Content can grow with wrapping/text zoom. Measure visible cards; scroll remains available.
+      const measured = Array.from(panel.querySelectorAll<HTMLElement>(".reception-time-tile")).map(tile => tile.getBoundingClientRect().height);
+      // Retain the largest measurement to avoid regroup/resize oscillation.
+      measuredTileHeight.current = Math.max(measuredTileHeight.current, ...measured);
+      const headerHeight = panel.querySelector("header")?.getBoundingClientRect().height ?? 40;
+      setLimit(tileDisplayLimit(width, height, measuredTileHeight.current, headerHeight));
     };
-    measure(); const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure); observer?.observe(root);
+    measure(); const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure); observer?.observe(root); root.querySelectorAll(".time-person").forEach(panel => observer?.observe(panel));
     window.addEventListener("resize", measure);
     return () => { observer?.disconnect(); window.removeEventListener("resize", measure); };
   }, [person]);
@@ -54,14 +57,14 @@ export function TimeTileBoard({ session, state, person, serviceId, openDetails, 
           const element = target(e.currentTarget);
           const run = () => { if (action.kind === "details") openDetails(action.ids, element, canAlsoCompose ? { staffId, minute: tile.start } : undefined); else if (action.kind === "compose") openComposer(element, staffId, action.minute); };
           if (overlay) openFromRange(run); else run();
-        }}><span className="block text-sm font-semibold">{minutesLabel(tile.start)}</span><span className="line-clamp-2 text-xs font-normal">{status}</span></button>
+        }}><span className="block text-sm font-semibold">{minutesLabel(tile.start)}</span><span className="block text-sm font-normal">{status}</span></button>
 
     </div>;
   };
   const selectedRange = range && all.find(p => p.person.id === range.staffId);
   return <div ref={board} className="reception-board time-tile-board mt-3 grid min-h-0 flex-1 gap-3" style={{ gridTemplateColumns: `repeat(${Math.max(all.length, 1)}, minmax(0, 1fr))` }}>
     {all.map(({ person: p, tiles }, index) => <section key={p.id} style={staffTheme(state.config, p.id)} data-selected={p.id === person} data-family={laneFamily(index)} className="board-person time-person min-w-0 rounded-xl border border-slate-200 p-3" aria-label={`${p.name} time tiles`}>
-      <header className="mb-2 flex items-center justify-between gap-2 text-sm"><strong className="truncate">{p.name}</strong><span className="shrink-0 text-xs">{bookingCount(tiles)} {bookingCount(tiles) === 1 ? "booking" : "bookings"}</span></header>
+      <header className="mb-2 flex items-center justify-between gap-2 text-sm"><strong className="min-w-0 break-words">{p.name}</strong><span className="shrink-0 text-xs">{bookingCount(tiles)} {bookingCount(tiles) === 1 ? "booking" : "bookings"}</span></header>
       <div className="time-tile-grid grid gap-1.5">
         {groupTimeTiles(tiles, limit).map((group, index, groups) => {
           const first = group[0], last = group.at(-1)!, previous = groups[index - 1]?.at(-1);
@@ -73,7 +76,7 @@ export function TimeTileBoard({ session, state, person, serviceId, openDetails, 
               aria-label={`${minutesLabel(first.start)}-${minutesLabel(last.end)}, time-range group: ${group.length} exact starts, ${bookingCount(group)} bookings${conflict ? ", CONFLICT" : ""}${group.some(t => t.blocks.some(b => b.kind === "buffer")) ? ", Buffer" : ""}${group.some(t => t.blocks.some(b => b.kind === "busy")) ? ", Busy" : ""}${mixedPeriod ? ", includes breaks" : ""}. Open all times and items.`}
               {...(ids.length ? previewEvents(ids) : {})}
               onClick={e => { dismissPreview(); trigger.current = e.currentTarget; setRange({ staffId: p.id, start: first.start, end: last.end }); }}>
-              <span className="block text-sm">{minutesLabel(first.start)}-{minutesLabel(last.end)}</span><span className="line-clamp-2 text-xs font-normal">{conflict ? "CONFLICT / " : ""}{group.length} starts / {bookingCount(group)} bookings{group.some(t => t.blocks.some(b => b.kind === "buffer")) ? " / Buffer" : ""}{group.some(t => t.blocks.some(b => b.kind === "busy")) ? " / Busy" : ""}{mixedPeriod ? " / breaks" : ""}</span>
+              <span className="block text-sm">{minutesLabel(first.start)}-{minutesLabel(last.end)}</span><span className="block text-sm font-normal">{conflict ? "CONFLICT / " : ""}{group.length} starts / {bookingCount(group)} bookings{group.some(t => t.blocks.some(b => b.kind === "buffer")) ? " / Buffer" : ""}{group.some(t => t.blocks.some(b => b.kind === "busy")) ? " / Busy" : ""}{mixedPeriod ? " / breaks" : ""}</span>
             </button>}
           </div>;
         })}

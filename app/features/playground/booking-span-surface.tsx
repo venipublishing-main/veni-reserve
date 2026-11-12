@@ -7,7 +7,7 @@ import type { SessionState } from "./session";
 import { staffTheme } from "./personnel";
 import { SpanPreviewInteraction } from "./span-preview";
 import { useTimetableNavigation } from "./use-timetable-navigation";
-import { laneLeft, lanesWidth, LANE_WIDTH, TIME_RAIL, minimapRect, previewPosition, worldToScreen } from "./timetable-camera";
+import { laneLeft, lanesWidth, LANE_WIDTH, TIME_RAIL, previewPosition, outsideViewport, worldToScreen } from "./timetable-camera";
 
 export type SpanSurfaceProps = {
   state: SessionState; rows: CapacityRow[]; people: string[]; range: { start: number; end: number };
@@ -25,7 +25,7 @@ export function BookingSpanSurface({ state, rows, people, range, pitch, mode, sc
   const origin = scale.position(range.start), height = scale.position(range.end) - origin;
   const world = { width: lanesWidth(people.length), height };
   const nav = useTimetableNavigation(world, active, controller.navigation);
-  const camera = nav.camera, rect = minimapRect(camera, world, nav.view);
+  const camera = nav.camera;
   useEffect(() => { controller.preference(mode); }, [controller, mode]);
   useEffect(() => { controller.dismiss(); }, [controller, state.appointments, state.calendar]);
   useLayoutEffect(() => {
@@ -43,7 +43,7 @@ export function BookingSpanSurface({ state, rows, people, range, pitch, mode, sc
   }, [controller]);
   const shown = spans.filter(s => people.includes(s.block.staffId) && spanBounds(s, scale, range));
   const omitted = spans.filter(s => !people.includes(s.block.staffId) && state.config.staff.some(p => p.id === s.block.staffId) && spanBounds(s, scale, range));
-  const offscreen = shown.filter(s => { const x = laneLeft(people.indexOf(s.block.staffId)); return x < camera.x || x + LANE_WIDTH > camera.x + nav.view.width; });
+  const offscreen = shown.filter(s => { const x = laneLeft(people.indexOf(s.block.staffId)); const bounds = spanBounds(s, scale, range)!; return outsideViewport(camera, { x, y: bounds.top, width: LANE_WIDTH, height: bounds.height }, nav.view); });
   const y = (minute: number) => worldToScreen(camera, { x: 0, y: scale.position(minute) - origin }).y;
   const labelEvery = Math.max(1, Math.ceil(18 / (pitch * camera.zoom)));
   return <div ref={root} className="span-surface" data-preview-scope={scope} title="">
@@ -56,12 +56,8 @@ export function BookingSpanSurface({ state, rows, people, range, pitch, mode, sc
     </div>
     <p className="text-center text-xs">{minutesLabel(range.start)}-{minutesLabel(range.end)} / {camera.zoom < 1 ? "Overview: zoom for labels" : "Readable detail"}</p>
     <p className="text-xs">Wheel: zoom · Middle-drag: pan · Hand or focused Space-drag · Arrows: pan · Home: fit</p>
-    <div ref={nav.mini} className="timetable-minimap" role="group" aria-label="Whole-day minimap: click or drag to recenter; arrow keys to pan" tabIndex={0} {...nav.miniEvents}>
-      {shown.map(s => { const b = spanBounds(s, scale, range)!; return <i key={s.block.id} style={{ ...staffTheme(state.config, s.block.staffId), left: `${laneLeft(people.indexOf(s.block.staffId)) / Math.max(1, world.width) * 100}%`, width: `${LANE_WIDTH / Math.max(1, world.width) * 100}%`, top: `${b.top / height * 100}%`, height: `${b.height / height * 100}%` }} data-kind={s.block.kind} data-conflict={s.block.conflict || undefined} />; })}
-      <span className="minimap-window" style={{ left: `${rect.x * 100}%`, top: `${rect.y * 100}%`, width: `${rect.width * 100}%`, height: `${rect.height * 100}%` }} />
-    </div>
     {omitted.length > 0 && <p className="text-xs">Other people pages: {new Set(omitted.map(s => s.block.appointmentId ?? s.block.id)).size} occupied items{omitted.some(s => s.block.conflict) ? " / CONFLICT" : ""}. Shared availability includes them.</p>}
-    {offscreen.length > 0 && <p className="text-xs">Horizontally offscreen: {new Set(offscreen.map(s => s.block.appointmentId ?? s.block.id)).size} occupied items{offscreen.some(s => s.block.conflict) ? " / CONFLICT" : ""}. Pan or use person controls; availability includes all people.</p>}
+    {offscreen.length > 0 && <p className="text-xs">Partly or fully offscreen: {new Set(offscreen.map(s => s.block.appointmentId ?? s.block.id)).size} occupied items{offscreen.some(s => s.block.conflict) ? " / CONFLICT" : ""}. Use Earlier/Later, person controls or Fit day; availability includes all people.</p>}
     <div className="span-navigation-frame" style={{ maxWidth: TIME_RAIL + world.width }}>
     <div className="span-lane-headings"><span>Start</span><div className="span-heading-clip">{people.map((id, i) => <span key={id} style={{ ...staffTheme(state.config, id), left: laneLeft(i) - camera.x, width: LANE_WIDTH }} className="capacity-person"><i />{state.config.staff.find(p => p.id === id)?.name}</span>)}</div></div>
     <div ref={nav.viewport} className="span-viewport" tabIndex={0} role="group" aria-label="Selected-day timetable: wheel zoom, middle-drag pan" data-dragging={nav.dragging || undefined} data-hand={nav.hand || undefined} {...nav.viewportEvents}>
