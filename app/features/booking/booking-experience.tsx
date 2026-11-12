@@ -1,5 +1,6 @@
+import { compatibleMinute, SubmissionGate } from "./draft-navigation";
 import { timeButtonClass } from "./time-button";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router";
 import { bookingTheme } from "./theme";
@@ -29,6 +30,8 @@ export type BookingExperienceProps = {
 export function BookingExperience({ today, now, services = DEMO_SERVICES, people = DEMO_PRACTITIONERS,
   business = { ...DEMO_BUSINESS, descriptor: "Optometrists · Pretoria", location: "Pretoria · Demo location" }, slotsFor, onBook, onWorkspace,
 }: BookingExperienceProps) {
+  const panel = useRef<HTMLElement>(null), focusStep = useRef(false);
+  const submission = useRef(new SubmissionGate());
   const [error, setError] = useState("");
   const [step, setStep] = useState<Step>(0);
   const [serviceId, setServiceId] = useState(services[0].id);
@@ -49,28 +52,25 @@ export function BookingExperience({ today, now, services = DEMO_SERVICES, people
   );
   const selectedSlot = slots.find((slot) => slot.startMinute === startMinute);
 
+  function navigate(next: Step) { setError(""); focusStep.current = true; setStep(next); }
+  useEffect(() => { if (focusStep.current) { panel.current?.focus(); focusStep.current = false; } }, [step]);
+  const choices = (nextDate: string, nextService: DemoService, nextStaff: string) => slotsFor ? slotsFor(nextDate, nextService.id, nextStaff) : demoAvailableSlots({ date: nextDate, service: nextService, staffId: nextStaff, now: new Date(now) });
   function chooseService(nextId: string) {
-    setServiceId(nextId);
-    setStaffId("any");
-    setStartMinute(null);
-    setStep(1);
+    const nextService = services.find(s => s.id === nextId)!;
+    const nextStaff = staffId === "any" || nextService.eligibleStaffIds.includes(staffId) ? staffId : "any";
+    setServiceId(nextId); setStaffId(nextStaff); setStartMinute(compatibleMinute(startMinute, choices(date, nextService, nextStaff))); navigate(1);
   }
   function chooseStaff(nextId: string) {
-    setStaffId(nextId);
-    setStartMinute(null);
-    setStep(2);
+    setStaffId(nextId); setStartMinute(compatibleMinute(startMinute, choices(date, service, nextId))); navigate(2);
   }
   function chooseDate(nextDate: string) {
-    setDate(nextDate);
-    setStartMinute(null);
+    setDate(nextDate); setStartMinute(compatibleMinute(startMinute, choices(nextDate, service, staffId))); setError("");
   }
   function submitPreview(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedSlot || !name.trim() || !email.trim()) return;
-    if (onBook) {
-      const failure = onBook(date, service.id, selectedSlot);
-      if (failure) { setError(failure); return; }
-    }
+    if (!selectedSlot || (!onBook && (!name.trim() || !email.trim()))) { setError("Review the selected time and required details, or use Back to change your selection."); return; }
+    const failure = submission.current.run(() => onBook?.(date, service.id, selectedSlot) ?? null);
+    if (failure) { setError(failure); return; }
     setError("");
     setCompleted(true);
   }
@@ -112,7 +112,7 @@ export function BookingExperience({ today, now, services = DEMO_SERVICES, people
             ))}
           </nav>
 
-          <section className="mt-7 rounded-[28px] border border-[#e2e9e0] bg-white p-5 shadow-[0_20px_60px_rgba(27,51,39,0.045)] sm:p-8" aria-live="polite">
+          <section ref={panel} tabIndex={-1} className="mt-7 rounded-[28px] border border-[#e2e9e0] bg-white p-5 shadow-[0_20px_60px_rgba(27,51,39,0.045)] sm:p-8" aria-live="polite">
             {completed ? (
               <div className="py-8 text-center">
                 <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#e1eee4] text-3xl text-[var(--booking-ink)]">✓</span>
@@ -123,18 +123,22 @@ export function BookingExperience({ today, now, services = DEMO_SERVICES, people
                 <p className="mx-auto mt-5 max-w-lg rounded-xl bg-[#fff4d9] p-4 text-sm font-medium text-[#765121]">
                   {onBook ? "A synthetic appointment was added to reception in this tab only. No real booking or message was created." : "This is a visual demonstration only. No appointment was saved, confirmed or sent to the practice."}
                 </p>
-                <button className="mt-7 rounded-full bg-[var(--booking-primary)] px-7 py-3 text-sm font-semibold text-[var(--booking-on-primary)] hover:bg-[var(--booking-hover)]" type="button" onClick={() => { setCompleted(false); setStep(0); setStartMinute(null); }}>
+                <button className="mt-7 rounded-full bg-[var(--booking-primary)] px-7 py-3 text-sm font-semibold text-[var(--booking-on-primary)] hover:bg-[var(--booking-hover)]" type="button" onClick={() => { submission.current = new SubmissionGate(); setCompleted(false); navigate(0); setStartMinute(null); }}>
                   Start another preview
                 </button>
               </div>
             ) : (
               <>
                 {step > 0 && (
-                  <button type="button" className="mb-6 text-sm font-semibold text-[#64806c] hover:underline" onClick={() => setStep((step - 1) as Step)}>
+                  <button type="button" className="booking-recovery sticky top-2 z-10 mb-4 rounded-lg border bg-white p-3 text-sm font-semibold text-[#64806c]" onClick={() => navigate((step - 1) as Step)}>
                     ← Back
                   </button>
                 )}
 
+                {step >= 2 && <div className="mb-4 flex flex-wrap gap-2" aria-label="Change booking selection">
+                  <button type="button" className="rounded-lg border p-2" onClick={() => navigate(1)}>Change practitioner</button>
+                  <button type="button" className="rounded-lg border p-2" onClick={() => { navigate(2); panel.current?.focus(); }}>Change date &amp; time</button>
+                </div>}
                 {step === 0 && (
                   <>
                     <p className="text-xs font-bold uppercase tracking-[0.22em] text-[#8a9a7b]">Step 01</p>
@@ -216,7 +220,7 @@ export function BookingExperience({ today, now, services = DEMO_SERVICES, people
                         ))}
                       </div>
                     )}
-                    <button type="button" disabled={!selectedSlot} onClick={() => setStep(3)}
+                    <button type="button" disabled={!selectedSlot} onClick={() => navigate(3)}
                       className="mt-8 w-full rounded-full bg-[var(--booking-primary)] px-6 py-3.5 text-sm font-semibold text-[var(--booking-on-primary)] hover:bg-[var(--booking-hover)] disabled:cursor-not-allowed disabled:opacity-35">
                       Continue to your details →
                     </button>
@@ -243,7 +247,7 @@ export function BookingExperience({ today, now, services = DEMO_SERVICES, people
                           placeholder="Use a fictional number" className="mt-2 block w-full rounded-xl border border-[#dce5da] bg-white px-4 py-3 text-sm outline-none focus:border-[#47735a] focus:ring-2 focus:ring-[#d8e8d9]" />
                       </label>
                       </>}
-                      {error && <p role="alert">{error}</p>}
+                      {!selectedSlot && <p role="status">The selected time is no longer available. Use Back or Change date &amp; time; your entered details are retained.</p>}{error && <p role="alert">{error}</p>}
                       <div className="rounded-xl bg-[#fff4d9] p-4 text-sm leading-6 text-[#765121]">
                         <strong>Demonstration only.</strong> Pressing the button below does not reserve a slot, contact the practice or write to a database.
                       </div>

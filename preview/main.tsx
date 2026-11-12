@@ -3,6 +3,7 @@ import { BrowserRouter, useLocation } from "react-router";
 import { useRef, useState } from "react";
 import Playground from "../app/routes/playground";
 import { ReceptionDialog } from "../app/features/playground/reception-dialog";
+import { NavigationInstructions } from "../app/features/playground/navigation-help";
 import { feedbackTemplate } from "./feedback";
 import "./preview.css";
 declare const __PREVIEW_SHA__: string;
@@ -14,8 +15,8 @@ function Feedback({ close, trigger }: { close: () => void; trigger: HTMLElement 
   return <ReceptionDialog title="Preview guide and feedback" onClose={close} returnFocus={trigger}>
     <p>Fictional businesses and simulated bookings only. Nothing here creates a real appointment, account, message or integration.</p>
     <p>Setup, logos and bookings stay in this tab's memory. Refreshing, leaving, closing or inactivity expiry loses the session. Restore tutorial baseline removes experiments; Start over clears the setup.</p>
-    <p>Reception: wheel to zoom, middle-drag to pan. Alternatives: +/−, Fit day, Readable, minimap, Hand, focused Space-drag or arrow keys. Agenda is the list alternative.</p>
-    <p>Limits: one location, three bookable setup people, ten services, 200 synthetic appointments, two-hour notice and fourteen-day horizon. Locality lookup is an offline catalogue, not address verification. Calendar and operator permissions are simulated. Week/Month views and further polish are backlog items.</p>
+    <NavigationInstructions /><p>Agenda remains the scrolling appointment-list alternative.</p>
+    <p>Limits: one location, three bookable setup people, ten services, 200 synthetic appointments, two-hour notice and fourteen-day horizon. Locality lookup is an offline catalogue, not address verification. Calendar and operator permissions are simulated. Calendar views do not extend booking eligibility.</p>
     <p>No analytics or session recording is added. Ordinary hosting request logs may exist. Do not put private information in URLs or feedback. This public preview is not confidential.</p>
     <p>Enter only the feedback you want to share. No business configuration, staff emails, logos or appointment records are attached. Copying does not submit anything; send it to the person who invited you.</p>
     {(["task", "expected", "actual", "device"] as const).map(key => <label key={key} className="block text-sm capitalize">{key}<textarea maxLength={2000} className="block w-full rounded border p-2" value={fields[key]} onChange={e => setFields({ ...fields, [key]: e.target.value })} /></label>)}

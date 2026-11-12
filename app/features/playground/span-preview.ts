@@ -24,8 +24,8 @@ export class SpanPreviewInteraction {
     const trigger = this.trigger; this.suppressed = trigger; this.pending = false; this.timer.dismiss();
     if (restore && trigger?.isConnected) { this.restoring = true; trigger.focus({ preventScroll: true }); this.restoring = false; }
   }
-  escape(event: { key: string; preventDefault: () => void; stopPropagation: () => void; stopImmediatePropagation?: () => void }) {
-    if (event.key !== "Escape" || (!this.active && !this.pending)) return false;
+  escape(event: { target?: EventTarget | null; key: string; preventDefault: () => void; stopPropagation: () => void; stopImmediatePropagation?: () => void }) {
+    if (event.key !== "Escape" || (!this.active && !this.pending) || (typeof Element !== "undefined" && event.target instanceof Element && event.target.closest("[data-floating-pin]"))) return false;
     event.preventDefault(); event.stopPropagation(); event.stopImmediatePropagation?.(); this.dismiss(true); return true;
   }
   handlers(ids: string[], pin: (ids: string[], target: HTMLElement) => void) {

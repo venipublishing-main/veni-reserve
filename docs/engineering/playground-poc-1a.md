@@ -805,3 +805,11 @@ References reviewed: MDN [title inheritance](https://developer.mozilla.org/en-US
 No hosted changes, real integrations, persistence, new dependencies or paid resources.
 
 Validation: pinned typecheck, lint, all 309 tests across 13 files, and build PASS. Actual browser acceptance remains pending.
+# Reception feedback V2 addendum (12 November 2026)
+
+The [V2 engineering checklist](reception-feedback-v2.md) supersedes prior minimap
+acceptance: minimap UI/wiring are removed, Day reclaims available height and retains
+zoom/pan controls. By practitioner uses content-aware tiles; Week is a dated
+appointment overview; first-use help is memory-session scoped. Agenda and exact
+Day duration geometry remain unchanged. Prior milestone sections below are
+historical; V2 manual browser acceptance and publication remain pending.

@@ -19,6 +19,23 @@ export class ReceptionDraft {
   }
 }
 export type DetailsMode = "click" | "hover";
+export class MoveDraft {
+  readonly source;
+  private readonly epoch: number;
+  private readonly revision: number;
+  private submitted = false;
+  constructor(private session: PlaygroundSession, id: string) {
+    const state = session.getSnapshot(); this.source = state.appointments.find(a => a.id === id);
+    this.epoch = state.epoch; this.revision = state.configRevision;
+  }
+  submit(target: { date: string; minute: number; staffId: string }, actorId: string, confirmed: string[] = [], consent?: string) {
+    if (this.submitted) return "This move has already been submitted.";
+    if (!this.source) return "Source appointment no longer exists.";
+    const error = this.session.moveAppointment(this.source, target, actorId, this.epoch, this.revision, confirmed, consent);
+    if (!error) this.submitted = true;
+    return error;
+  }
+}
 /** Cancel delayed previews on preference changes, dismissal and disposal. */
 export class DetailPreviewController {
   mode: DetailsMode = "click";

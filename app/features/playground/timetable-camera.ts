@@ -19,12 +19,12 @@ export function wheelFactor(delta: number, mode: number, height: number) {
   const pixels = delta * (mode === 1 ? 16 : mode === 2 ? height : 1);
   return Math.exp(-Math.max(-160, Math.min(160, pixels)) * .003);
 }
-export function minimapRect(c: Camera, world: Extent, view: Extent) {
-  return { x: c.x / Math.max(1, world.width), y: c.y / Math.max(1, world.height * c.zoom),
-    width: Math.min(1, view.width / Math.max(1, world.width)), height: Math.min(1, view.height / Math.max(1, world.height * c.zoom)) };
+/** Resizing preserves an intentional camera; only Fit mode refits the whole day. */
+export function resizeCamera(c: Camera, world: Extent, view: Extent, fitted: boolean): Camera {
+  return fitted ? { zoom: fitZoom(world, view), x: 0, y: 0 } : clampCamera(c, world, view);
 }
-export function centreAt(c: Camera, x: number, y: number, world: Extent, view: Extent) {
-  return clampCamera({ ...c, x: x * world.width - view.width / 2, y: y * world.height * c.zoom - view.height / 2 }, world, view);
+export function outsideViewport(c: Camera, item: { x: number; y: number; width: number; height: number }, view: Extent) {
+  return item.x < c.x || item.x + item.width > c.x + view.width || item.y * c.zoom < c.y || (item.y + item.height) * c.zoom > c.y + view.height;
 }
 export function reveal(c: Camera, item: { x: number; y: number; width: number; height: number }, world: Extent, view: Extent) {
   const top = item.y * c.zoom, bottom = (item.y + item.height) * c.zoom;
@@ -37,6 +37,10 @@ type WheelInput = { ctrlKey: boolean; metaKey: boolean; cancelable: boolean; del
 export function handleTimetableWheel(e: WheelInput, active: boolean, excluded: boolean, height: number, top: number, zoom: (factor: number, y: number) => void) {
   if (!acceptsWheel(e, active, excluded) || !e.deltaY) return false;
   e.preventDefault(); e.stopPropagation(); zoom(wheelFactor(e.deltaY, e.deltaMode, height), e.clientY - top); return true;
+}
+export function horizontalWheel(e: WheelInput & { deltaX: number }, active: boolean, excluded: boolean, width: number, shift: (pixels: number) => void) {
+  if (!acceptsWheel(e, active, excluded) || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return false;
+  e.preventDefault(); e.stopPropagation(); shift(e.deltaX * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? width : 1)); return true;
 }
 type CaptureTarget = { setPointerCapture: (id: number) => void; hasPointerCapture: (id: number) => boolean; releasePointerCapture: (id: number) => void };
 /** Gesture state is local to a viewport; a release/cancel can never become an action click. */

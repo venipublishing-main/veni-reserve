@@ -1,5 +1,12 @@
 # My Playground feedback preview release
 
+V2 review candidate: see [Reception feedback V2](reception-feedback-v2.md) for the
+scoped changes, manual acceptance and separate-release/rollback procedure. The
+current public source remains `4218a3cf52bf485ee626f343c1bf1654fbcf16de`, provider
+version `4341a172-0ce9-41fc-9ce6-4e730a31bd55`. Workers Free and initial deployment
+were confirmed on 12 November 2026; plan-pending statements below describe the
+original preparation gate. V2 has no deployment authorization.
+
 Source candidate: `d9a1543957147f0bb32f97c1759b9d274ad93493` (owner-reported positive walkthrough, not blanket browser/mobile/accessibility acceptance).
 Release worktree: `E:\Dev\veni-reserve-feedback-preview`.
 Release branch: `feat/playground-feedback-preview-20261111`, stacked on PR #10's

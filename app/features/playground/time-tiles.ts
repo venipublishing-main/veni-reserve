@@ -57,3 +57,9 @@ export function groupTimeTiles(tiles: TimeTile[], limit = 32): TimeTile[][] {
   return groups;
 }
 export function bookingCount(tiles: TimeTile[]) { return new Set(tiles.flatMap(t => t.appointmentIds)).size; }
+/** A grouping budget, not a fixed-height promise: wrapped cards remain scrollable. */
+export function tileDisplayLimit(width: number, height: number, measuredHeight: number, headerHeight: number) {
+  const columns = Math.max(1, Math.floor((width + 6) / 146));
+  const rows = Math.max(1, Math.floor((height - headerHeight - 68) / (Math.max(76, measuredHeight) + 6)));
+  return Math.min(48, Math.max(4, columns * rows));
+}

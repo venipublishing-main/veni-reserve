@@ -22,6 +22,12 @@ export function canOverrideBuffer(c: Configuration, actorId: string | undefined,
   const actor = c.people.find(p => p.id === actorId);
   return !!actor && c.staff.some(p => p.id === staffId) && (actor.roles.some(r => ["Owner", "Admin", "Reception"].includes(r)) || (actor.id === staffId && actor.roles.includes("Staff")));
 }
+export function canMoveAppointment(c: Configuration, actorId: string | undefined, sourceStaffId: string, targetStaffId: string) {
+  const actor = c.people.find(p => p.id === actorId);
+  if (!actor) return false;
+  if (actor.roles.some(r => ["Owner", "Admin", "Reception"].includes(r))) return true;
+  return actor.roles.includes("Staff") && actor.id === sourceStaffId && actor.id === targetStaffId;
+}
 
 /** Approved soft overlap remains visible; it is not a hard service/busy collision. */
 export function approvedBufferOverlap(state: import("./session").SessionState,

@@ -1,4 +1,4 @@
-import { canOverrideBuffer, personColour } from "./personnel";
+import { canMoveAppointment, canOverrideBuffer, personColour } from "./personnel";
 import { defaultHours, dayPeriods, validHours } from "./scheduling";
 import type { WeeklyHours } from "./scheduling";
 import { offlineLocalities } from "./localities";
@@ -23,12 +23,13 @@ export type Configuration = {
   hours: WeeklyHours; startInterval: number;
   theme: { primary: string; accent: string; logoUrl?: string };
 };
-export type SimulatedAppointment = ReceptionAppointment & { start: number; end: number; locationId: string; staffColour?: string; bufferOverride?: { actorId: string; appointmentIds: string[] } };
+export type SimulatedAppointment = ReceptionAppointment & { start: number; end: number; locationId: string; staffColour?: string; bufferOverride?: { actorId: string; appointmentIds: string[] }; moveHistory?: { date: string; startMinute: number; staffId: string; actorId: string }[] };
 export type SessionState = {
   phase: "setup" | "active"; step: number; view: "booking" | "reception" | "configure";
   config: Configuration; baseline: Configuration | null; appointments: SimulatedAppointment[];
   calendar: SimulatedCalendarState;
   diaryDate: string;
+  navigationHelpSeen: boolean;
   lastActivity: number; epoch: number; configRevision: number; nextId: number; notice: string;
 };
 
@@ -108,7 +109,7 @@ function immutable<T>(value: T): T {
 function initial(now: number, epoch = 0, notice = ""): SessionState {
   return immutable({ phase: "setup", step: 0, view: "booking", config: emptyConfiguration(), baseline: null,
     appointments: [], calendar: { connected: false, busy: null }, diaryDate: "", lastActivity: now, epoch,
-    configRevision: 0, nextId: 1, notice });
+    configRevision: 0, nextId: 1, notice, navigationHelpSeen: false });
 }
 
 /** Explicit adapter boundary. Production is deliberately not an implementation of
@@ -186,6 +187,11 @@ export class PlaygroundSession implements BookingAdapter {
     return [];
   }
   view(view: SessionState["view"]) { if (this.touch()) this.emit({ ...this.state, view }); }
+  acknowledgeNavigationHelp() {
+    if (this.state.phase !== "active" || this.checkExpiry()) return false;
+    this.emit({ ...this.state, navigationHelpSeen: true });
+    return true;
+  }
   selectDiaryDate(date: string) {
     if (/^\d{4}-\d{2}-\d{2}$/.test(date) && Number.isFinite(Date.parse(date)) &&
       new Date(date).toISOString().slice(0, 10) === date && this.touch()) this.emit({ ...this.state, diaryDate: date });
@@ -194,8 +200,8 @@ export class PlaygroundSession implements BookingAdapter {
   receptionSlots(date: string, serviceId: string, staffId: string, actorId: string) {
     return canOverrideBuffer(this.state.config, actorId, staffId) ? this.calculateSlots(date, serviceId, staffId, actorId) : this.slots(date, serviceId, staffId);
   }
-  private calculateSlots(date: string, serviceId: string, staffId: string, actorId?: string) {
-    const s = this.state, c = s.config;
+  private calculateSlots(date: string, serviceId: string, staffId: string, actorId?: string, s = this.state) {
+    const c = s.config;
     if (s.phase !== "active" || this.clock() - s.lastActivity >= this.policy.inactivityMs || configurationErrors(c).length) return [];
     const today = todayInTimeZone(new Date(this.clock()), c.business.timezone);
     if (date < today || date > addDays(today, 14)) return [];
@@ -211,12 +217,57 @@ export class PlaygroundSession implements BookingAdapter {
   book(date: string, serviceId: string, minute: number, staffId: string): string | null {
     return this.commitBooking(date, serviceId, minute, staffId);
   }
-  bufferTouches(date: string, serviceId: string, minute: number, staffId: string): string[] {
-    const c = this.state.config, service = c.services.find(s => s.id === serviceId);
+  bufferTouches(date: string, serviceId: string, minute: number, staffId: string, state = this.state): string[] {
+    const c = state.config, service = c.services.find(s => s.id === serviceId);
     if (!service || !validTimezone(c.business.timezone)) return [];
     const start = dayClock(date, c.business.timezone)(minute); if (start === null) return [];
     const end = start + (service.durationMinutes + service.bufferAfterMinutes) * 60_000;
-    return this.state.appointments.filter(a => a.staffId === staffId && a.bufferAfterMinutes > 0 && start < a.end && end > a.start + a.durationMinutes * 60_000).map(a => a.id).sort();
+    return state.appointments.filter(a => a.staffId === staffId && a.bufferAfterMinutes > 0 && start < a.end && end > a.start + a.durationMinutes * 60_000).map(a => a.id).sort();
+  }
+  private moveProposal(source: SimulatedAppointment): SessionState | null {
+    const s = this.state, service = s.config.services.find(v => v.id === source.serviceId);
+    if (!service || !s.config.staff.some(p => p.id === source.staffId) || source.locationId !== s.config.location.id) return null;
+    return { ...s, config: { ...s.config, services: s.config.services.map(v => v.id === source.serviceId ? { ...v, durationMinutes: source.durationMinutes, bufferAfterMinutes: source.bufferAfterMinutes } : v) },
+      appointments: s.appointments.filter(a => a.id !== source.id).map(a => {
+        if (!a.bufferOverride?.appointmentIds.includes(source.id)) return a;
+        const ids = a.bufferOverride.appointmentIds.filter(id => id !== source.id);
+        return { ...a, bufferOverride: ids.length ? { ...a.bufferOverride, appointmentIds: ids } : undefined };
+      }) };
+  }
+  moveSlots(id: string, date: string, staffId: string, actorId: string, override = false) {
+    const source = this.state.appointments.find(a => a.id === id);
+    if (!source || !canMoveAppointment(this.state.config, actorId, source.staffId, staffId)) return [];
+    const proposed = this.moveProposal(source); if (!proposed) return [];
+    return this.calculateSlots(date, source.serviceId, staffId, override ? actorId : undefined, proposed);
+  }
+  moveBufferTouches(id: string, date: string, minute: number, staffId: string) {
+    const source = this.state.appointments.find(a => a.id === id), proposed = source && this.moveProposal(source);
+    return source && proposed ? this.bufferTouches(date, source.serviceId, minute, staffId, proposed) : [];
+  }
+  moveBufferConsent(id: string, date: string, minute: number, staffId: string) {
+    const ids = this.moveBufferTouches(id, date, minute, staffId);
+    return JSON.stringify([id, date, minute, staffId, this.state.appointments.filter(a => ids.includes(a.id))]);
+  }
+  moveAppointment(source: SimulatedAppointment, target: { date: string; minute: number; staffId: string }, actorId: string,
+    epoch: number, configRevision: number, confirmedBufferIds: string[] = [], consent?: string): string | null {
+    if (this.checkExpiry() || this.state.phase !== "active" || this.state.epoch !== epoch) return "This move expired or was reset.";
+    if (this.state.configRevision !== configRevision) return "Configuration changed. Reopen the move to review current rules.";
+    if (this.state.appointments.find(a => a.id === source.id) !== source) return "The source appointment changed or was cancelled. Reopen its details.";
+    if (!canMoveAppointment(this.state.config, actorId, source.staffId, target.staffId)) return "This simulated operator cannot move this source to that practitioner.";
+    const proposed = this.moveProposal(source); if (!proposed) return "The source service or practitioner is no longer supported. Original booking retained.";
+    if (target.date === source.date && target.minute === source.startMinute && target.staffId === source.staffId) return null;
+    const touched = this.moveBufferTouches(source.id, target.date, target.minute, target.staffId);
+    if (!this.moveSlots(source.id, target.date, target.staffId, actorId, touched.length > 0).some(s => s.startMinute === target.minute)) return "That move is no longer available. Original booking retained.";
+    if (touched.length && (JSON.stringify(touched) !== JSON.stringify([...new Set(confirmedBufferIds)].sort()) || consent !== this.moveBufferConsent(source.id, target.date, target.minute, target.staffId))) return "Review and freshly confirm the current destination buffers.";
+    const start = dayClock(target.date, this.state.config.business.timezone)(target.minute)!, person = this.state.config.staff.find(p => p.id === target.staffId)!;
+    const moved: SimulatedAppointment = { ...source, date: target.date, startMinute: target.minute, staffId: target.staffId,
+      staffName: person.name, staffColour: personColour(this.state.config.people.find(p => p.id === person.id)!), start,
+      end: start + (source.durationMinutes + source.bufferAfterMinutes) * 60_000,
+      bufferOverride: touched.length ? { actorId, appointmentIds: touched } : undefined,
+      moveHistory: [...(source.moveHistory ?? []), { date: source.date, startMinute: source.startMinute, staffId: source.staffId, actorId }] };
+    // One atomic emit. Revoke references to the old buffer so its waiver cannot move with it.
+    this.emit({ ...this.state, lastActivity: this.clock(), diaryDate: target.date, appointments: [...proposed.appointments, moved] });
+    return null;
   }
   receptionBook(date: string, serviceId: string, minute: number, staffId: string, actorId: string, confirmedBufferIds: string[]): string | null {
     if (!canOverrideBuffer(this.state.config, actorId, staffId)) return "This simulated operator cannot override this person's buffers.";

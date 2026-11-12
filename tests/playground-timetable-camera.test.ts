@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { activeTimetable, reveal, clampCamera, fitZoom, zoomAt, screenToWorld, worldToScreen, wheelFactor, handleTimetableWheel, minimapRect, centreAt, TimetablePan, LANE_WIDTH, laneLeft, lanesWidth, previewPosition } from "../app/features/playground/timetable-camera";
+import { activeTimetable, reveal, clampCamera, fitZoom, zoomAt, screenToWorld, worldToScreen, wheelFactor, handleTimetableWheel, resizeCamera, outsideViewport, TimetablePan, LANE_WIDTH, laneLeft, lanesWidth, previewPosition } from "../app/features/playground/timetable-camera";
 import { BookingSpanSurface } from "../app/features/playground/booking-span-surface";
 import { ReceptionDialog } from "../app/features/playground/reception-dialog";
 import { bookingSpans, dayScale, spanBounds } from "../app/features/playground/booking-spans";
@@ -46,11 +46,16 @@ describe("bounded time camera", () => {
     expect(wheelFactor(9999, 0, 320)).toBe(wheelFactor(160, 0, 320)); expect(wheelFactor(-.5, 0, 320)).toBeGreaterThan(1);
     expect(wheelFactor(.5, 0, 320)).toBeLessThan(1);
   });
-  it("recentres from minimap coordinates and represents the visible rectangle", () => {
-    const c = centreAt({ zoom: 1, x: 0, y: 0 }, .5, .5, world, view);
-    expect(c).toEqual({ zoom: 1, x: 475, y: 320 }); expect(minimapRect(c, world, view)).toEqual({ x: 475 / 1200, y: 1 / 3, width: 250 / 1200, height: 1 / 3 });
-    expect(centreAt(c, -2, 10, world, view)).toEqual({ zoom: 1, x: 0, y: 640 });
-    expect(minimapRect({ zoom: 1 / 3, x: 0, y: 0 }, world, view).height).toBe(1);
+  it("refits on resize only in Fit mode and preserves intentional zoom within bounds", () => {
+    const camera = { zoom: 2, x: 100, y: 200 }, larger = { width: 500, height: 500 };
+    expect(resizeCamera(camera, world, larger, false)).toEqual(camera);
+    expect(resizeCamera(camera, world, larger, true)).toEqual({ zoom: 500 / 960, x: 0, y: 0 });
+    expect(resizeCamera({ zoom: 2, x: 9999, y: 9999 }, world, larger, false)).toEqual({ zoom: 2, x: 700, y: 1420 });
+  });
+  it("reports partial and fully offscreen occupancy in both axes without a minimap", () => {
+    const c = { zoom: 2, x: 100, y: 200 };
+    expect(outsideViewport(c, { x: 120, y: 120, width: 120, height: 20 }, view)).toBe(false);
+    for (const item of [{ x: 0, y: 120, width: 120, height: 20 }, { x: 120, y: 90, width: 120, height: 20 }, { x: 120, y: 500, width: 120, height: 20 }]) expect(outsideViewport(c, item, view)).toBe(true);
   });
   it("retains exact 60+10 endpoints at every zoom and inverts times through split breaks", () => {
     const s = fixture(), state = structuredClone(s.getSnapshot()); state.config.hours[3] = [{ opens: 540, closes: 720 }, { opens: 780, closes: 1020 }];
@@ -62,7 +67,7 @@ describe("bounded time camera", () => {
   });
   it("does not mutate session configuration, snapshots or invalidate an open booking draft", () => {
     const s = fixture(), before = s.getSnapshot(), draft = new ReceptionDraft(s);
-    const c = centreAt(zoomAt({ zoom: 1, x: 0, y: 0 }, 2, 160, world, view), .5, .8, world, view); expect(c.y).toBeGreaterThan(0);
+    const c = zoomAt({ zoom: 1, x: 0, y: 0 }, 2, 160, world, view); expect(c.y).toBeGreaterThan(0);
     expect(s.getSnapshot()).toBe(before); expect(draft.submit({ date, serviceId: "service-1", staffId: "staff-1", minute: 615 })).toBeNull();
   });
 });
@@ -102,7 +107,7 @@ describe.each(["day", "range"] as const)("%s shared viewport markup", scope => {
     const surface = createElement(BookingSpanSurface, { state, rows: capacityRows(s, state, date), people: state.config.staff.map(p => p.id), range: { start: 540, end: 1020 }, pitch: 32, scope, mode: "hover", pin: () => {}, book: () => {} });
     const html = renderToStaticMarkup(scope === "day" ? surface : createElement(ReceptionDialog, { title: "Day capacity", onClose: () => {}, returnFocus: null, children: surface }));
     expect(html.match(/class="span-person-lane"/g)).toHaveLength(count); expect(html).toContain(`width:${LANE_WIDTH}px`); expect(html).not.toContain("minmax(0, 1fr))"); expect(html).not.toMatch(/title="[^"]+/);
-    expect(html).toContain('title=""'); expect(html).toContain('aria-label="09:00-10:00 Booked:'); expect(html).toContain('data-time="1005"'); expect(html).toContain("Fit day"); expect(html).toContain("Readable / reset"); expect(html).toContain("Whole-day minimap"); expect(html).not.toContain("Time-range group");
+    expect(html).toContain('title=""'); expect(html).toContain('aria-label="09:00-10:00 Booked:'); expect(html).toContain('data-time="1005"'); expect(html).toContain("Fit day"); expect(html).toContain("Readable / reset"); expect(html).not.toContain("minimap"); expect(html).not.toContain("Time-range group");
     if (scope === "range") expect(html.indexOf("<dialog")).toBeLessThan(html.indexOf('data-preview-scope="range"'));
   });
   it("clamps screen-space previews within the active dialog bounds, without board zoom", () => {
