@@ -1,4 +1,7 @@
-import { WeekOverview } from "./week-overview";
+import { canMoveAppointment } from "./personnel";
+import { weekDates } from "./week-overview";
+import { WeekTimetable } from "./week-timetable";
+import { MonthBoard } from "./month-board";
 import { NavigationHelp, useFirstNavigationHelp } from "./navigation-help";
 import { CapacityBoard } from "./capacity-board";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
@@ -23,7 +26,7 @@ export function PlaygroundDiary({ session, today }: { session: PlaygroundSession
   const state = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot);
   const [actorId, setActorId] = useState("");
   const [serviceId, setServiceId] = useState("");
-  const [view, setView] = useState<"day" | "agenda" | "person" | "week">("day");
+  const [view, setView] = useState<"day" | "agenda" | "person" | "week" | "month">("day");
   const [person, setPerson] = useState(state.config.staff[0]?.id ?? "");
   const [mode, setMode] = useState<DetailsMode>("click");
   const [preview, setPreview] = useState<string[] | null>(null);
@@ -90,6 +93,11 @@ export function PlaygroundDiary({ session, today }: { session: PlaygroundSession
     <strong>{minutesLabel(b.start)}-{minutesLabel(b.end)} / {b.kind}</strong><p>{b.label}</p>{b.kind === "appointment" && <p>Status: Scheduled</p>}
     {b.appointmentId && state.appointments.find(a => a.id === b.appointmentId)?.bufferOverride && <p className="font-semibold text-amber-900">Confirmed operational buffer override (local simulation). Original buffer snapshots remain.</p>}
     {b.conflict && <p className="font-semibold text-amber-900">Conflict with occupied or closed time. Nothing has moved.</p>}
+    {pinned && b.appointmentId && b.kind === "appointment" && <button type="button" className={`${button} mt-2`} disabled={!canMoveAppointment(c, actorId, b.staffId, b.staffId)} onClick={() => {
+      const a = state.appointments.find(a => a.id === b.appointmentId); if (!a) return;
+      setDetails(null); openComposer(opener.current!, a.staffId, a.startMinute, { date: a.date, serviceId: a.serviceId, moveId: a.id });
+    }}>Move appointment</button>}
+    {pinned && b.appointmentId && b.kind === "appointment" && !actorId && <p>Select a simulated operator to manage moves.</p>}
     {pinned && b.appointmentId && b.kind === "appointment" && <button type="button" className={`${button} mt-2`} onClick={() => { session.cancel(b.appointmentId!); setDetails(null); setMessage("Synthetic appointment cancelled."); }}>Cancel appointment</button>}
     {pinned && b.kind === "busy" && <button type="button" className={`${button} mt-2`} onClick={() => { session.disconnect(); setDetails(null); setMessage("Simulated calendar disconnected."); }}>Disconnect simulated calendar</button>}
   </li>)}</ul>;
@@ -101,7 +109,7 @@ export function PlaygroundDiary({ session, today }: { session: PlaygroundSession
         <button className={button} aria-label="Previous day" onClick={() => session.selectDiaryDate(addDays(date, -1))}>&larr;</button>
         <label className="text-sm">Date <input className="rounded-lg border p-1.5" type="date" value={date} onChange={e => session.selectDiaryDate(e.target.value)} /></label>
         <button className={button} aria-label="Next day" onClick={() => session.selectDiaryDate(addDays(date, 1))}>&rarr;</button>
-        {(["day", "week", "agenda", "person"] as const).map(v => <button key={v} aria-pressed={view === v} className={button} style={view === v ? { background: "var(--booking-accent)", color: "var(--booking-on-accent)" } : undefined} onClick={() => { controller.dismiss(); setView(v); }}>{v === "day" ? "Day" : v === "agenda" ? "Agenda" : v === "week" ? "Week" : "By practitioner"}</button>)}
+        {(["day", "week", "month", "agenda", "person"] as const).map(v => <button key={v} aria-pressed={view === v} className={button} style={view === v ? { background: "var(--booking-accent)", color: "var(--booking-on-accent)" } : undefined} onClick={() => { controller.dismiss(); setView(v); }}>{v === "day" ? "Day" : v === "agenda" ? "Agenda" : v === "week" ? "Week" : v === "month" ? "Month" : "By practitioner"}</button>)}
         <button ref={helpTrigger} className={button} onClick={showHelp}>Navigation help</button>
         <button data-reception-new-booking className={button} onClick={e => openComposer(e.currentTarget)} disabled={!c.staff.length}>+ New booking</button>
       </div>
@@ -120,12 +128,14 @@ export function PlaygroundDiary({ session, today }: { session: PlaygroundSession
       {!span ? <div className="flex flex-1 items-center justify-center rounded-xl bg-slate-50 p-5 text-center"><p>Closed on this day. Check exceptions for retained appointments, or choose another date.</p></div> : view === "day" ? <CapacityBoard key={`${state.epoch}:${date}:${state.configRevision}:${selectedService}:${actorId}`} session={session} state={state} serviceId={selectedService} actorId={actorId} openDetails={openDetails} openComposer={openComposer} mode={mode} suspended={help || !!details || !!composer} /> : <TimeTileBoard key={`${state.epoch}:${date}:${state.configRevision}:${selectedService}`} session={session} state={state} person={selectedPerson} serviceId={selectedService} openDetails={openDetails} openComposer={openComposer} previewEvents={previewEvents} dismissPreview={() => controller.dismiss()} />}
 
     </>}
-    {view === "week" && <WeekOverview state={state} today={today} selectWeek={d => session.selectDiaryDate(d)}
+    {view === "week" && <WeekTimetable key={`${state.epoch}:${weekDates(date)[0]}:${state.configRevision}`} state={state} session={session} today={today} serviceId={selectedService} actorId={actorId} mode={mode} suspended={help || !!details || !!composer}
       openDay={d => { controller.dismiss(); session.selectDiaryDate(d); setView("day"); }}
-      openAppointment={(d, ids, target) => { controller.dismiss(); opener.current = target; setDetailDate(d); setDetailCandidate(null); setDetails(ids); }}
-      newBooking={(d, target) => openComposer(target, selectedPerson, undefined, { date: d })} />}
+      openDetails={(d, ids, target) => { controller.dismiss(); opener.current = target; setDetailDate(d); setDetailCandidate(null); setDetails(ids); }} openComposer={openComposer} />}
+    {view === "month" && <MonthBoard key={state.epoch} state={state} today={today} mode={mode} suspended={help || !!details || !!composer}
+      selectDate={d => session.selectDiaryDate(d)} openDay={d => { session.selectDiaryDate(d); setView("day"); }} openWeek={d => { session.selectDiaryDate(d); setView("week"); }}
+      openDetails={(d, ids, target) => { controller.dismiss(); opener.current = target; setDetailDate(d); setDetailCandidate(null); setDetails(ids); }} />}
     {view === "agenda" && <div className="mt-3 min-h-0 flex-1 overflow-auto"><ReceptionExperience embedded today={today} selectedDate={date} onDateChange={d => session.selectDiaryDate(d)} business={{ name: c.business.name, descriptor: locationSummary(c), ...c.theme }} people={c.staff} services={c.services}
-      appointmentsFor={d => state.appointments.filter(a => a.date === d)} onCancel={id => session.cancel(id)} onBooking={() => { const target = document.querySelector<HTMLElement>("[data-reception-new-booking]"); if (target) openComposer(target); }} bookingActionLabel="New booking" /></div>}
+      appointmentsFor={d => state.appointments.filter(a => a.date === d)} onCancel={id => session.cancel(id)} onDetails={(id, target) => { const a = state.appointments.find(a => a.id === id); if (a) { opener.current = target; setDetailDate(a.date); setDetailCandidate(null); setDetails([id, `${id}-buffer`]); } }} onBooking={() => { const target = document.querySelector<HTMLElement>("[data-reception-new-booking]"); if (target) openComposer(target); }} bookingActionLabel="New booking" /></div>}
     {visiblePreview && visiblePreview.length > 0 && <aside id="reception-preview" role="region" aria-label="Read-only appointment preview" tabIndex={0}
       className="reception-preview fixed z-40 max-h-56 w-80 overflow-auto rounded-xl border border-slate-300 bg-white p-3 text-slate-900 shadow-xl" style={{ left: previewPoint.x, top: previewPoint.y }}
       onPointerEnter={() => controller.keep()} onPointerLeave={e => { if (!e.currentTarget.contains(document.activeElement)) controller.leave(); }} onFocus={() => controller.keep()} onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) controller.leave(); }}>

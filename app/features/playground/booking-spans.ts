@@ -2,6 +2,15 @@ import { dayPeriods } from "./scheduling";
 import { diaryBlocks } from "./diary-projection";
 import type { DiaryBlock } from "./diary-projection";
 import type { SessionState } from "./session";
+/** Week uses one linear business-clock scale; no independently compressed breaks. */
+export function clockScale(state: SessionState, date: string, range: { start: number; end: number }, pitch: number): ReturnType<typeof dayScale> {
+  const rate = pitch / Math.max(1, state.config.startInterval);
+  const position = (minute: number) => (minute - range.start) * rate;
+  const periods = dayPeriods(state.config.hours, date);
+  const cuts = [...new Set([range.start, range.end, ...periods.flatMap(p => [Math.max(range.start, p.opens), Math.min(range.end, p.closes)])])].filter(m => m >= range.start && m <= range.end).sort((a, b) => a - b);
+  const parts = cuts.slice(0, -1).map((start, i) => ({ start, end: cuts[i + 1], top: position(start), height: (cuts[i + 1] - start) * rate, closed: !periods.some(p => start >= p.opens && cuts[i + 1] <= p.closes) }));
+  return { parts, height: position(range.end), position, minuteAt: pixel => range.start + pixel / rate };
+}
 
 export function dayScale(state: SessionState, date: string, pitch: number) {
   const parts: { start: number; end: number; top: number; height: number; closed: boolean }[] = [];

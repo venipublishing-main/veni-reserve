@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { PointerEvent, KeyboardEvent, MouseEvent, FocusEvent } from "react";
-import { activeTimetable, resizeCamera, clampCamera, fitZoom, TimetablePan, handleTimetableWheel, reveal, zoomAt, TIME_RAIL } from "./timetable-camera";
+import { activeTimetable, resizeCamera, clampCamera, fitZoom, TimetablePan, handleTimetableWheel, horizontalWheel, reveal, zoomAt, TIME_RAIL } from "./timetable-camera";
 import type { Camera, Extent } from "./timetable-camera";
 
 const excluded = (target: EventTarget | null) => target instanceof Element && !!target.closest("input,select,textarea,[contenteditable=true],[data-navigation-ignore]");
-export function useTimetableNavigation(world: Extent, active: boolean, navigation: (moving: boolean) => void) {
+export function useTimetableNavigation(world: Extent, active: boolean, navigation: (moving: boolean) => void, rail = TIME_RAIL) {
   const viewport = useRef<HTMLDivElement>(null);
   const [view, setView] = useState({ width: 400, height: 320 });
   const [camera, setCamera] = useState<Camera>({ zoom: fitZoom(world, view), x: 0, y: 0 });
@@ -28,12 +28,13 @@ export function useTimetableNavigation(world: Extent, active: boolean, navigatio
   useEffect(() => {
     const node = viewport.current; if (!node) return;
     const measure = () => {
-      const v = { width: Math.max(1, node.clientWidth - TIME_RAIL), height: Math.max(1, node.clientHeight) }; setView(v);
+      const v = { width: Math.max(1, node.clientWidth - rail), height: Math.max(1, node.clientHeight) }; setView(v);
       setCamera(c => resizeCamera(c, current.current.world, v, fitted.current));
       pause(); resume();
     };
     measure(); const observer = new ResizeObserver(measure); observer.observe(node);
     const wheel = (e: WheelEvent) => {
+      if (horizontalWheel(e, allowed(), excluded(e.target), current.current.view.width, dx => change((c, w, v) => clampCamera({ ...c, x: c.x + dx }, w, v)))) return;
       handleTimetableWheel(e, allowed(), excluded(e.target), current.current.view.height, node.getBoundingClientRect().top, (factor, y) => change((c, w, v) => zoomAt(c, factor, y, w, v)));
     };
     const blur = () => { space.current = false; stop(); };
@@ -58,6 +59,7 @@ export function useTimetableNavigation(world: Extent, active: boolean, navigatio
     e.preventDefault(); if (e.key === "Home") fit(); else if (e.key === "+" || e.key === "=") zoom(1.25); else if (e.key === "-") zoom(.8); else shift(e.key === "ArrowRight" ? 60 : e.key === "ArrowLeft" ? -60 : 0, e.key === "ArrowDown" ? 60 : e.key === "ArrowUp" ? -60 : 0);
   };
   return { viewport, camera, view, hand, dragging, fit, zoom, shift, keyboard,
+    horizontal: (x: number) => change((c, w, v) => clampCamera({ ...c, x }, w, v)),
     readable: () => { stop(); change((_c, w, v) => clampCamera({ zoom: 1, x: 0, y: 0 }, w, v)); },
     toggleHand: () => { stop(); setHand(h => !h); },
     viewportEvents: {

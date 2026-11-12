@@ -15,14 +15,14 @@ import {
 export type ReceptionAppointment = DemoAppointment & { serviceName?: string; staffName?: string };
 export function ReceptionExperience({ today, business = DEMO_BUSINESS,
   people = DEMO_PRACTITIONERS, services = DEMO_SERVICES, appointmentsFor = syntheticAppointments,
-  onCancel, onBooking, initialDate, selectedDate, onDateChange, bookingActionLabel = "Booking preview", embedded = false,
+  onCancel, onBooking, onDetails, initialDate, selectedDate, onDateChange, bookingActionLabel = "Booking preview", embedded = false,
 }: {
   today: string; bookingActionLabel?: string; embedded?: boolean;
   initialDate?: string; selectedDate?: string; onDateChange?: (date: string) => void;
   business?: { name: string; descriptor: string; primary?: string; accent?: string };
   people?: readonly DemoPractitioner[]; services?: readonly DemoService[];
   appointmentsFor?: (date: string) => ReceptionAppointment[];
-  onCancel?: (id: string) => void; onBooking?: () => void;
+  onDetails?: (id: string, target: HTMLElement) => void; onCancel?: (id: string) => void; onBooking?: () => void;
 }) {
   const [localDate, setLocalDate] = useState(initialDate ?? today);
   const date = selectedDate ?? localDate;
@@ -128,7 +128,7 @@ export function ReceptionExperience({ today, business = DEMO_BUSINESS,
                       <td className="px-6 py-5 text-[#607362]">{appointment.serviceName ?? serviceNames[appointment.serviceId]}</td>
                       <td className="px-6 py-5 text-[#607362]">{appointment.staffName ?? staffNames[appointment.staffId]}</td>
                       <td className="px-6 py-5"><span className={`whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${appointment.status === "checked_in" ? "bg-[#e8f1db] text-[#5b7945]" : "bg-[#e8f0ec] text-[#497462]"}`}>{appointment.status === "checked_in" ? "Checked in" : "Scheduled"}</span></td>
-                      {onCancel && <td className="px-6 py-5"><button type="button" className="rounded-full border px-4 py-2" onClick={() => onCancel(appointment.id)}>Cancel <span className="sr-only">{appointment.customerLabel}</span></button></td>}
+                      {onCancel && <td className="px-6 py-5">{onDetails && <button type="button" className="rounded-full border px-4 py-2" onClick={e => onDetails(appointment.id, e.currentTarget)}>Details / Move</button>}<button type="button" className="rounded-full border px-4 py-2" onClick={() => onCancel(appointment.id)}>Cancel <span className="sr-only">{appointment.customerLabel}</span></button></td>}
                     </tr>
                   ))}
                 </tbody>

@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { clampPosition, DialogDrag } from "./reception-state";
 
-export function ReceptionDialog({ title, children, onClose, movable = false, returnFocus }: {
-  title: string; children: ReactNode; onClose: () => void; movable?: boolean; returnFocus: HTMLElement | null;
+export function ReceptionDialog({ title, children, onClose, movable = false, returnFocus, closeLabel = "Close" }: {
+  title: string; children: ReactNode; onClose: () => void; movable?: boolean; returnFocus: HTMLElement | null; closeLabel?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [point, setPoint] = useState<{ x: number; y: number } | null>(null);
@@ -44,7 +44,7 @@ export function ReceptionDialog({ title, children, onClose, movable = false, ret
         if (!movable || !desktop() || e.target !== e.currentTarget || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) return;
         e.preventDefault(); const box = ref.current!.getBoundingClientRect(); move(box.left + (e.key === "ArrowLeft" ? -20 : e.key === "ArrowRight" ? 20 : 0), box.top + (e.key === "ArrowUp" ? -20 : e.key === "ArrowDown" ? 20 : 0));
       }}>
-      <div><h2 id="reception-dialog-title" className="text-lg font-semibold">{title}</h2>{movable && <span className="reception-drag-hint text-xs text-slate-600">Drag this header to move / or use arrow keys</span>}</div><button type="button" className="rounded-lg border bg-white px-3 py-2" onClick={onClose}>Close</button>
+      <div><h2 id="reception-dialog-title" className="text-lg font-semibold">{title}</h2>{movable && <span className="reception-drag-hint text-xs text-slate-600">Drag this header to move / or use arrow keys</span>}</div><button type="button" className="rounded-lg border bg-white px-3 py-2" onClick={onClose}>{closeLabel}</button>
     </header>
     {movable && <div className="reception-position-controls gap-2 border-b px-4 py-2 text-sm">{["Dock left", "Recentre", "Dock right", "Reset position"].map((label, i) => <button className="rounded border px-2 py-1" type="button" key={label} onClick={() => {
       const box = ref.current!.getBoundingClientRect(); move(i === 0 ? 12 : (i === 1 || i === 3) ? (window.innerWidth - box.width) / 2 : window.innerWidth - box.width - 12, (window.innerHeight - box.height) / 2);

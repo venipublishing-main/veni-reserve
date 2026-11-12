@@ -1,6 +1,6 @@
 # Reception feedback V2 — review candidate, not deployed
 
-Scope: [PR #11 comment 6815191920](https://github.com/venipublishing-main/veni-reserve/pull/11#issuecomment-6815191920).
+Initial scope: [PR #11 comment 6815191920](https://github.com/venipublishing-main/veni-reserve/pull/11#issuecomment-6815191920).
 Branch: `feat/reception-feedback-v2-20261112`, stacked on
 `feat/playground-feedback-preview-20261111` at reviewed release
 `4218a3cf52bf485ee626f343c1bf1654fbcf16de`. The draft PR records the exact candidate
@@ -26,7 +26,7 @@ deployment is part of this change. PRs #9/#10/#11 retain their branches and base
   snapshots. Each appointment is counted once; buffers and simulated busy time are
   labelled separately. Conflicts/approved overrides use the existing projection.
   Closed/off-grid/removed-person records remain accessible. All cards remain in a
-  scrolling list; there is no truncation, Month button or alternate scheduler.
+  scrolling list in the initial V2 candidate; the revision below replaces its primary presentation.
 - [x] Week day actions select that date in Day; card details carry their own date;
   New booking carries that date into the existing composer, including the selected
   simulated actor/service and unchanged notice/horizon/override checks.
@@ -76,12 +76,12 @@ While that local server runs, in a separate terminal:
 node preview/smoke.mjs http://127.0.0.1:5183
 ```
 
-Stop only that local server afterward. The smoke script checks root/direct route,
+Leave the final candidate server running for owner review; stop only that server when the walkthrough ends. The smoke script checks root/direct route,
 release identifier, artifact hashes, security headers and rejected GET/POST backend
 paths. Exact candidate-head `validate` and `database-security` must pass on GitHub.
 No browser controls have been retried; no screenshots or visual PASS are claimed.
 
-Local validation: pinned installation, typecheck, lint, all 330 tests across 15 files,
+Initial V2 validation: pinned installation, typecheck, lint, all 330 tests across 15 files,
 main build and isolated preview build/artifact verification passed. The existing
 React Router use-client bundler warning remains non-blocking. The draft PR records
 the final committed-source HTTP verification and exact-head CI results.
@@ -95,15 +95,40 @@ the final committed-source HTTP verification and exact-head CI results.
   intentionally zoomed scales; verify offscreen occupied/conflict notices.
 - [ ] Wheel/pointer anchoring, middle-drag release/cancel, Hand/touch and keyboard
   controls; no action click after pan; previews remain screen-sized and correctly
-  placed. Agenda and Week keep ordinary scrolling.
+  placed. Agenda keeps ordinary scrolling; Week supports horizontal scrolling and shared timetable gestures.
 - [ ] Week at month/year boundaries: seven dates, accurate unique counts, empty/
-  closed/retained days, long and dense cards. Day/card/New booking actions use the
+  closed/retained days, long and dense records. Day/card/New booking actions use the
   clicked date. Cancel a Week booking and check Day/Agenda/public availability.
 - [ ] First Reception Day entry: help once; dismiss via close/Escape/Start; focus
   returns; reopen explicitly. No repeat across views/dates or soft restore. Hard
   reset/expiry enables it again after setup. Existing modals never stack with help.
 - [ ] Browser console/network and Guide/feedback: no errors, backend transmission,
   unexpected persistence or automatic feedback submission.
+
+## Shared calendar / Move / Back revision
+
+Scope: [PR #12 comment 6821535550](https://github.com/venipublishing-main/veni-reserve/pull/12#issuecomment-6821535550), following reviewed candidate `d8959cbdf9bbf9aeecd95ddc17cd419366065747` on the same branch/base.
+
+- [x] Keep the customer's existing Back control, make it sticky, and add explicit change-selection actions outside required form validation. Restore panel focus, preserve entered visitor details and compatible selections, and guard successful submission. Source inspection identified recovery/focus and dependent-selection weaknesses; no browser reproduction is claimed.
+- [x] Reception recovery stays outside the form with sticky controls. White-time entry retains its exact anchor until explicit Change date & time. Services are not mutually filtered into an empty selector; invalid selections remain recoverable.
+- [x] Week's primary UI now uses horizontally navigable dated groups of the SAME Day span renderer. A shared linear business-clock scale aligns times across different hours and split breaks. The world spans the working-hours union (09:00?17:00 fallback when the entire week is closed), not midnight?midnight. Bounded practitioner widths, measured headings, column virtualization, native horizontal scroll, horizontal trackpad input and buttons keep all dates reachable. The existing vertical Week list's projection/legacy markup tests are retained, but that list is no longer mounted as the primary Week view. New tests assert the shared renderer and aligned geometry.
+- [x] Month uses Monday?Sunday padded dates, unique record counts and practitioner markers meaning **has bookings**, never fullness. Closed/conflict/retained indicators are separate; delayed read-only hover/focus and pinned full summaries expose all records and dated Day/Week/details actions. No native titles or minimap added.
+- [x] Move reuses the composer and session scheduler, with a pure proposed state excluding only the source appointment/buffer. One atomic update retains ID/count, visitor/service identity and recorded duration/buffer snapshots. Current source reference, epoch/config revision, occupancy, eligibility, horizon and adapter-enforced actor scope are checked again. Staff can move only their own booking to themselves; simulated elevated operators can move across eligible people; public/unselected actors cannot manage appointments.
+- [x] Cancellation/failure leaves the original unchanged. No-op and duplicate submits are safe. Old buffer waivers are removed; destination overrides require fresh consent bound to the actual touched records, never overriding service/external-busy collisions. Removed source service/practitioner produces a clear failure rather than silently rewriting history.
+- [x] Navigation help and release Guide describe shared Week, Month, selection recovery and explicit Move confirmation. Agenda styling, VVB behavior, static release boundaries and memory-only lifecycle remain intact.
+
+Regression evidence includes pure domain tests, source/SSR assertions, camera/pointer helpers and synthetic session mutations. These do **not** establish visual fit, live focus behavior or mouse/touch acceptance. No blocked browser mechanism was retried. There is no new persistence, real integration, hosted access or deployment.
+
+### Additional owner walkthrough (pending)
+
+- [ ] Customer: zero/stale slots, incomplete details and validation errors. Back/change actions stay reachable on a short phone viewport; compatible choices and typed details survive. Back/Forward does not duplicate a booking.
+- [ ] Reception white-time entry: exact time stays anchored while choosing an eligible person/service. Explicit Change date & time releases it. Recover from no slots without closing the dialog.
+- [ ] Week: different weekday hours and split breaks align 10:00 across all dates; exact 60-minute service plus 10-minute buffer. Horizontal scrollbar/trackpad, middle/Hand pan, anchored wheel zoom, buttons/keyboard, long headings and narrow screens. Check all seven days and retained exceptions.
+- [ ] Month: month/year/leap boundaries, unique counts, person markers, closed/conflicts/retained indicators, delayed focus/hover then pinned dense summary, correct-date Open Day/Week and appointment details. Check focus return and modal isolation.
+- [ ] Move from Day, Week, Month, By practitioner and Agenda: old/new details, cancellation, same-place confirmation, own-interval overlap and cross-person eligibility. Try Staff versus Reception/Owner and an unselected operator. Original remains after failures; success updates all views/public availability with one ID/count.
+- [ ] Fresh buffer consent after a destination record changes; source canceled/moved/config changed while composer open; double submit; reset/expiry; no click after pan. Verify preview placement and no competing tooltip.
+
+Revision validation: typecheck, lint, all 360 tests across 18 files, main build and isolated preview build/artifact verification passed. The existing React Router use-client bundler warning remains non-blocking. The final PR handoff records the committed SHA, exact-head CI and local HTTP results. The generated version manifest identifies the served commit. **NOT DEPLOYED**; owner review and separate publication approval remain required.
 
 ## Separate release approval and rollback
 

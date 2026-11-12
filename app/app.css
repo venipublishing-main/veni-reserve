@@ -137,3 +137,7 @@ body {
 .timetable-tools { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; font-size: 12px; }
 .timetable-tools button { background: white; border: 1px solid #64748b; border-radius: 6px; padding: 3px 7px; }
 .timetable-tools button[aria-pressed=true] { background: #cbd5e1; }
+.week-timetable { overflow: auto; }
+.week-timetable > :not(.span-viewport) { flex-shrink: 0; }
+.span-surface[data-shared=true] .span-navigation-frame,
+.span-surface[data-shared=true] .span-viewport { min-height: 0; }

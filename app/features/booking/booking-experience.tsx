@@ -130,7 +130,7 @@ export function BookingExperience({ today, now, services = DEMO_SERVICES, people
             ) : (
               <>
                 {step > 0 && (
-                  <button type="button" className="booking-recovery mb-4 rounded-lg border bg-white p-3 text-sm font-semibold text-[#64806c]" onClick={() => navigate((step - 1) as Step)}>
+                  <button type="button" className="booking-recovery sticky top-2 z-10 mb-4 rounded-lg border bg-white p-3 text-sm font-semibold text-[#64806c]" onClick={() => navigate((step - 1) as Step)}>
                     ← Back
                   </button>
                 )}

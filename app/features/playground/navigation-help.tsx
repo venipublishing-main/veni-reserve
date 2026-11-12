@@ -8,6 +8,10 @@ export function NavigationInstructions() {
     <li>Hold the wheel/middle button and drag = pan. Release to stop.</li>
     <li>Click a white time = new booking. Click a coloured booking = details.</li>
     <li>Fit day = whole-day overview. Readable restores readable time detail.</li>
+    <li>Week uses the same timetable across seven dated columns. Scroll horizontally, pan, or use Previous/Next day columns. The dates share one clock scale.</li>
+    <li>Month markers mean has bookings, not fully booked. Click a date to pin its summary, then Open day, Open week or appointment details.</li>
+    <li>Use Back / Change practitioner or Change date &amp; time to recover an unavailable choice. White-time entry keeps its exact start until you explicitly change time.</li>
+    <li>To move a booking, select an authorised simulated operator, open pinned details and choose Move appointment. Review OLD → NEW and Confirm move; Cancel move preserves the original. Dragging only pans the timetable.</li>
     <li>Alternatives: +/−, Earlier/Later and person buttons. Hand lets you drag with the left button or touch. Focus the timetable for Space-drag, arrow keys, +/− or Home (Fit day). Touch can use buttons or Agenda; pinch zoom is not implemented.</li>
   </ul>;
 }

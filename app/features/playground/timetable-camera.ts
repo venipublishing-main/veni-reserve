@@ -38,6 +38,10 @@ export function handleTimetableWheel(e: WheelInput, active: boolean, excluded: b
   if (!acceptsWheel(e, active, excluded) || !e.deltaY) return false;
   e.preventDefault(); e.stopPropagation(); zoom(wheelFactor(e.deltaY, e.deltaMode, height), e.clientY - top); return true;
 }
+export function horizontalWheel(e: WheelInput & { deltaX: number }, active: boolean, excluded: boolean, width: number, shift: (pixels: number) => void) {
+  if (!acceptsWheel(e, active, excluded) || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return false;
+  e.preventDefault(); e.stopPropagation(); shift(e.deltaX * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? width : 1)); return true;
+}
 type CaptureTarget = { setPointerCapture: (id: number) => void; hasPointerCapture: (id: number) => boolean; releasePointerCapture: (id: number) => void };
 /** Gesture state is local to a viewport; a release/cancel can never become an action click. */
 export class TimetablePan {
