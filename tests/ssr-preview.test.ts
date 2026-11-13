@@ -41,7 +41,7 @@ describe("isolated SSR preview", () => {
     expect(config.name).toBe("vf-reserve-dev"); expect(config.env.stg.name).toBe("vf-reserve-stg");
     expect(config.env.app_preview.vars).toEqual({ VENI_ENV: "app_preview", VENI_PRODUCT: "reserve" });
     expect(config.env.app_preview.name).toBe("vf-reserve-app-preview");
-    expect(config.env.app_preview.limits.cpu_ms).toBe(10);
+    expect(config.env.app_preview.limits).toBeUndefined();
     expect(read(".github/workflows/ci.yml")).not.toMatch(/wrangler deploy|CLOUDFLARE_API_TOKEN/);
   });
 });

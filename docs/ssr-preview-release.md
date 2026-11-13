@@ -45,7 +45,7 @@ Publication requires a clean committed tree, exact-head validate and
 database-security green (the latter runs genuine disposable local
 Auth/PostgREST/RLS checks), owner confirmation of Workers Free/capacity, correct
 account `c71916b32e9e18b2271be2b081c4f927`, and confirmed absent target on first release.
-The configured 10 ms CPU ceiling and lack of paid bindings do not guarantee
+The Free plan built-in 10 ms CPU ceiling and lack of paid bindings do not guarantee
 unlimited traffic: Free request/CPU quotas can cause unavailable responses.
 Never enable billing to resolve a limit.
 
@@ -89,3 +89,5 @@ Recheck the existing public Playground `/version.json` still reports
   the previously denied project. Keep registration and persistence unavailable.
 - Parent discovery draft PR remains unpublished. Add verified SSR URL as primary
   discovery and keep optional simulation link separate, subject to owner review.
+
+Provider references: [build-time environment selection](https://developers.cloudflare.com/workers/vite-plugin/reference/cloudflare-environments/), [Free limits](https://developers.cloudflare.com/workers/platform/limits/), [custom limits apply to Standard](https://developers.cloudflare.com/workers/wrangler/configuration/#limits). No custom CPU override or usage-model upgrade is configured.

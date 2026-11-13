@@ -33,9 +33,6 @@
       "vars": {
         "VENI_PRODUCT": "reserve",
         "VENI_ENV": "app_preview"
-      },
-      "limits": {
-        "cpu_ms": 10
       }
     }
   }

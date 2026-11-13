@@ -11,7 +11,7 @@ assert.equal(config.targetEnvironment, "app_preview");
 assert.deepEqual(config.vars, { VENI_PRODUCT: "reserve", VENI_ENV: "app_preview" });
 assert.equal(config.workers_dev, true); assert.equal(config.preview_urls, false);
 assert.deepEqual(config.assets, { binding: "ASSETS", run_worker_first: true, directory: "../client" });
-assert.deepEqual(config.limits, { cpu_ms: 10 });
+assert.equal(config.limits, undefined, "Use Free plan defaults; do not request custom paid limits");
 assert.deepEqual(config.observability, { enabled: false });
 const permitted = new Set(["configPath", "userConfigPath", "topLevelName", "definedEnvironments", "targetEnvironment", "account_id", "compatibility_date", "compatibility_flags", "jsx_factory", "jsx_fragment", "rules", "name", "main", "assets", "workers_dev", "preview_urls", "vars", "observability", "python_modules", "dev", "no_bundle", "limits"]);
 const empty = v => v == null || (Array.isArray(v) ? v.length === 0 : typeof v === "object" && Object.values(v).every(empty));

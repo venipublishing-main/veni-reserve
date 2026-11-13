@@ -12,4 +12,3 @@ for (const name of (await readdir("build/client/assets")).sort()) {
 }
 await writeFile("build/client/__preview-assets.json", JSON.stringify({ source, artifact: "reserve-ssr-preview-v1", files }, null, 2) + "\n");
 await import("./verify.mjs");
-
