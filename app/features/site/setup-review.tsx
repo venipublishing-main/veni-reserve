@@ -5,7 +5,7 @@ import { advanceReview, emptyReviewDraft, typography, validBusiness, validTheme 
 import { setupSteps } from "./navigation";
 const inputClass = "mt-1 block w-full rounded border border-slate-400 bg-white p-3";
 const buttonClass = "rounded-xl border border-slate-400 bg-white px-4 py-3 font-semibold disabled:opacity-50";
-export function SetupReview() {
+export function SetupReview({ onlinePreview = false }: { onlinePreview?: boolean }) {
   const [draft, setDraft] = useState(emptyReviewDraft), [error, setError] = useState("");
   const heading = useRef<HTMLHeadingElement>(null), moved = useRef(false);
   useEffect(() => { if (moved.current) heading.current?.focus(); }, [draft.step]);
@@ -16,7 +16,7 @@ export function SetupReview() {
   }
   const theme = validTheme(draft.theme) ? draft.theme : emptyReviewDraft().theme;
   return <section className="space-y-6">
-    <p className="rounded-xl border border-amber-300 bg-amber-50 p-4">Local design review only. Use fictional information. These unsaved edits exist in this component's memory, are lost on refresh/leaving and are not an authenticated business or a saved Theme Revision.</p>
+    <p className="rounded-xl border border-amber-300 bg-amber-50 p-4">{onlinePreview ? "UNSAVED DEMONSTRATION — preview environment only." : "Local design review only."} Use fictional information. These unsaved edits exist in this component's memory, are lost on refresh/leaving and are not an authenticated business or a saved Theme Revision.</p>
     <nav aria-label="Setup review steps" className="flex flex-wrap gap-3">{(["business", "brand", "review"] as const).map(step => <button type="button" className={buttonClass} key={step} aria-current={draft.step === step ? "step" : undefined}
       disabled={step !== "business" && (!validBusiness(draft.business) || (step === "review" && !validTheme(draft.theme)))}
       onClick={() => { moved.current = true; setDraft({ ...draft, step }); setError(""); }}>{step === "brand" ? "Brand / Theme Studio" : step === "business" ? "Business" : "Review gates"}</button>)}</nav>
