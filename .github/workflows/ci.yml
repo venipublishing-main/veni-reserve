@@ -26,6 +26,17 @@ jobs:
       - run: pnpm lint
       - run: pnpm test
       - run: pnpm build
+      - name: Built standalone route boundary
+        timeout-minutes: 2
+        run: |
+          setsid pnpm exec vite preview --host 127.0.0.1 --port 5185 --strictPort > /tmp/reserve-site.log 2>&1 &
+          site_pid=$!
+          trap 'kill -- "-$site_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:5185/health > /dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/site-smoke.mjs http://127.0.0.1:5185
       - run: pnpm build:playground-preview
       - name: Built preview HTTP boundary
         timeout-minutes: 2
