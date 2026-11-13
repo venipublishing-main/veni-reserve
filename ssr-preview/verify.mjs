@@ -28,7 +28,7 @@ for (const root of ["build/client", "build/server"]) for (const name of await re
   assert(!/\.(?:map|pem|key|crt)$|(?:^|[\\/])\.env/.test(name), `Private artifact: ${name}`);
   if (root.endsWith("client")) assert(/^(?:assets[\\/][^/\\]+\.(?:js|css)|__preview-assets\.json|\.assetsignore|\.vite[\\/]manifest\.json)$/.test(name), `Unexpected public file: ${name}`);
   const content = await readFile(path, "utf8");
-  assert(!/supabase\.co|sb_publishable_[a-zA-Z0-9_-]+|sb_secret_|SUPABASE_URL|SUPABASE_PUBLISHABLE_KEY|BEGIN (?:RSA |EC )?PRIVATE KEY|service_role/.test(content), `Backend/secret reference: ${name}`);
+  assert(!/reserve-local-[ab]@example\.invalid|tenant-harness|bootstrap_setup_tenant|supabase\.co|sb_publishable_[a-zA-Z0-9_-]+|sb_secret_|SUPABASE_URL|SUPABASE_PUBLISHABLE_KEY|BEGIN (?:RSA |EC )?PRIVATE KEY|service_role/.test(content), `Backend/secret reference: ${name}`);
 }
 if (process.argv.includes("--for-publication")) assert.equal(execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" }).trim(), "", "Publication requires a clean tree");
 console.log(`PASS isolated SSR artifact ${source}: ${Object.keys(manifest.files).length} hashed assets; no provider code, bindings or credentials`);

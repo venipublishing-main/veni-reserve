@@ -5,7 +5,7 @@ select no_plan();
 
 -- Independent inventory: no policy on permissions or private history relations.
 select results_eq($$select jsonb_build_array(schemaname,tablename,policyname,cmd,roles) from pg_policies
- where schemaname in ('public','private') and not (schemaname='private' and tablename in ('settings_reference','tenant_business_settings','tenant_business_settings_changes')) order by tablename$$,
+ where schemaname in ('public','private') and roles<>array['veni_bootstrap_executor']::name[] and not (schemaname='private' and tablename in ('settings_reference','tenant_business_settings','tenant_business_settings_changes')) order by tablename$$,
  $$values
  ('["public","audit_events","audit_events_select_authenticated","SELECT",["authenticated"]]'::jsonb),
  ('["public","membership_roles","membership_roles_select_authenticated","SELECT",["authenticated"]]'::jsonb),
@@ -16,7 +16,7 @@ select results_eq($$select jsonb_build_array(schemaname,tablename,policyname,cmd
  ('["public","users","users_select_authenticated","SELECT",["authenticated"]]'::jsonb)$$,
  'Exact seven SELECT-only authenticated policies');
 select ok(bool_and(qual is not null and qual <> 'true' and with_check is null), 'No blanket or write predicates')
- from pg_policies where schemaname in ('public','private') and not (schemaname='private' and tablename in ('settings_reference','tenant_business_settings','tenant_business_settings_changes'));
+ from pg_policies where schemaname in ('public','private') and roles<>array['veni_bootstrap_executor']::name[] and not (schemaname='private' and tablename in ('settings_reference','tenant_business_settings','tenant_business_settings_changes'));
 
 create temporary table app_relations(name text primary key, readable boolean);
 insert into app_relations values ('public.tenants',true),('public.users',true),('public.memberships',true),
@@ -32,7 +32,7 @@ select ok(not has_table_privilege(r,name,'SELECT WITH GRANT OPTION,INSERT WITH G
 select is((select count(*) from app_relations join pg_class c on c.oid=name::regclass,
  lateral aclexplode(coalesce(c.relacl,acldefault('r',c.relowner))) a where a.grantee=0),0::bigint,'No PUBLIC application grants');
 select is((select count(*) from app_relations join pg_attribute a on a.attrelid=name::regclass
- where a.attnum>0 and not a.attisdropped and coalesce(cardinality(a.attacl),0)>0),0::bigint,'No hidden explicit column ACLs');
+ where a.attnum>0 and not a.attisdropped and coalesce(cardinality(a.attacl),0)>0),1::bigint,'One explicitly reviewed bootstrap audit-lock column ACL');
 select ok(not has_any_column_privilege(r,name,'INSERT,UPDATE,REFERENCES'),r||' no effective column write privileges '||name)
  from app_relations cross join unnest(array['anon','authenticated','service_role']) r;
 select is(has_any_column_privilege(r,name,'SELECT'),r='authenticated' and readable,r||' exact effective column reads '||name)
@@ -57,7 +57,7 @@ select ok(p.prosrc !~* '\m(execute|insert|update|delete|truncate|set[[:space:]]+
 select is(has_function_privilege(r,signature,'EXECUTE'),r='authenticated',r||' exact helper EXECUTE '||signature)
  from helpers cross join unnest(array['anon','authenticated','service_role']) r;
 select results_eq($$select p.oid::regprocedure::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace
- where n.nspname='private' and p.oid not in ('private.read_tenant_business_settings(uuid)'::regprocedure,'private.save_tenant_business_settings(uuid,integer,text,text,text,text,text,text)'::regprocedure) and has_function_privilege('authenticated',p.oid,'EXECUTE') order by 1$$,
+ where n.nspname='private' and p.oid not in ('private.authenticated_session_user()'::regprocedure,'private.bootstrap_setup_tenant(uuid)'::regprocedure,'private.read_tenant_business_settings(uuid)'::regprocedure,'private.save_tenant_business_settings(uuid,integer,text,text,text,text,text,text)'::regprocedure) and has_function_privilege('authenticated',p.oid,'EXECUTE') order by 1$$,
  $$select signature from helpers order by 1$$,'Exactly eight executable signatures; integrity triggers not exposed');
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace,
  lateral aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where n.nspname='private' and (a.grantee=0 or a.is_grantable and a.grantee='authenticated'::regrole)),
@@ -141,5 +141,10 @@ update public.memberships set status='REVOKED' where id='91000000-0000-4000-8000
 select ok(private.can_read_membership('91000000-0000-4000-8000-000000000001')
  and private.current_membership_id('90000000-0000-4000-8000-000000000001') is null,'Revoked own status does not restore active membership');
 set constraints all immediate;
+select is((select count(*) from pg_policies where roles=array['veni_bootstrap_executor']::name[]),12::bigint,'12 explicit bootstrap executor policies');
+select ok(has_column_privilege('veni_bootstrap_executor','public.memberships','id','UPDATE') and not has_column_privilege('veni_bootstrap_executor','public.memberships','status','UPDATE'),'only immutable ID lock privilege');
+select is((select with_check from pg_policies where policyname='bootstrap_memberships_lock'),'false','audit lock cannot mutate Membership');
+select ok(not has_table_privilege('authenticated','private.tenant_bootstrap_requests','SELECT,INSERT,UPDATE,DELETE'),'bootstrap receipt is private');
+select is((select proconfig from pg_proc where oid='public.bootstrap_setup_tenant(uuid)'::regprocedure),array['search_path=""','default_transaction_isolation=serializable'],'RPC starts SERIALIZABLE');
 select * from finish();
 rollback;

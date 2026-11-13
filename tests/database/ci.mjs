@@ -122,7 +122,7 @@ async function hygiene() {
     (select count(*) from public.tenants) + (select count(*) from public.memberships) +
     (select count(*) from public.membership_roles) + (select count(*) from public.audit_events) +
     (select count(*) from private.invitations) + (select count(*) from private.invitation_roles) +
-    (select count(*) from private.tenant_business_settings) + (select count(*) from private.tenant_business_settings_changes) + (select count(*) from public.roles where kind = 'CUSTOM');
+    (select count(*) from private.tenant_bootstrap_requests) + (select count(*) from private.tenant_business_settings) + (select count(*) from private.tenant_business_settings_changes) + (select count(*) from public.roles where kind = 'CUSTOM');
     select count(*) from public.permissions;
     select count(*) from public.roles where kind = 'SYSTEM';
     select count(*) from public.role_permissions rp join public.roles r on r.id=rp.role_id where r.kind='SYSTEM';`);
@@ -157,8 +157,8 @@ async function phase() {
       localGuard();
       requireSafe(capture("docker", ["exec", "-i", "supabase_db_veni-reserve", "psql", "-X", "-U", "postgres", "-d", "postgres", "-At", "-v", "ON_ERROR_STOP=1"], 30_000,
         "select version from supabase_migrations.schema_migrations order by version;").replaceAll("\r", "") ===
-        "20261030154642\n20261030174937\n20261031031256\n20261103160923", "Expected four accepted migrations were not reconstructed.");
-      console.log("Clean migration reconstruction: 20261030154642 / 20261030174937 / 20261031031256 / 20261103160923 PASS");
+        "20261030154642\n20261030174937\n20261031031256\n20261103160923\n20261113111616", "Expected four accepted migrations plus local bootstrap candidate were not reconstructed.");
+      console.log("Clean migration reconstruction: 20261030154642 / 20261030174937 / 20261031031256 / 20261103160923 / 20261113111616 PASS");
       break;
     case "hygiene":
       await hygiene();

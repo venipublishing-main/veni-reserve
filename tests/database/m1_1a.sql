@@ -104,7 +104,7 @@ select ok((select bool_and(created_at = transaction_timestamp()) from public.mem
 select ok(c.relrowsecurity, c.relname || ' has structural RLS enabled')
 from pg_class c join pg_namespace n on n.oid = c.relnamespace
 where n.nspname = 'public' and c.relname in ('tenants', 'users', 'memberships') order by c.relname;
-select is((select count(*) from pg_policies where schemaname = 'public'
+select is((select count(*) from pg_policies where schemaname = 'public' and roles=array['authenticated']::name[]
   and tablename in ('tenants', 'users', 'memberships')), 3::bigint,
   'AR-028 adds exactly three foundation read policies (full inventory tested in M1.2)');
 select ok(not has_table_privilege(r, 'public.' || t, 'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
