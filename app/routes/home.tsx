@@ -13,6 +13,10 @@ export default function Home() {
       <ol className="mt-4 grid list-inside list-decimal gap-3 sm:grid-cols-3">{setupSteps.map(step => <li key={step}>{step}</li>)}</ol>
       <p className="mt-5">Your business will stay private during setup. Publishing will require validated settings and booking readiness.</p>
     </section>
+    <section aria-labelledby="product-entry-title" className="space-y-3"><h2 id="product-entry-title" className="text-2xl font-semibold">Business and booking entry</h2>
+      <p>Business setup requires the pending Veni Account connection. Public business booking is not launched on this candidate.</p>
+      <div className="flex flex-wrap gap-4"><Link className={linkClass} to="/app/onboarding">Business setup</Link><Link className={linkClass} to="/book/unpublished">Public booking entry — not launched</Link></div>
+    </section>
     <p>Already exploring? You can choose Create my business at any time. Fictional Playground people, bookings and logos are never imported automatically.</p>
   </SiteShell>;
 }

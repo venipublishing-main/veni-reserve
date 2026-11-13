@@ -17,7 +17,7 @@ afterEach(() => vi.unstubAllGlobals());
 describe("standalone product navigation", () => {
   it("offers optional Playground and direct signup without sibling or umbrella navigation", () => {
     const html = render(Home); expect(html).toContain('href="/playground"'); expect(html).toContain('href="/signup"'); expect(html).toContain('href="/login"');
-    expect(html).toContain("Registration is not open yet"); expect(html).not.toMatch(/href="https:|Veni Kids|Arcana|Mythos/);
+    expect(html).toContain('href="/app/onboarding"'); expect(html).toContain('href="/book/unpublished"'); expect(html).toContain("Registration is not open yet"); expect(html).not.toMatch(/href="https:|Veni Kids|Arcana|Mythos/);
     expect(render(SiteHeader)).toContain('aria-label="Veni Reserve home" href="/"');
   });
   it("keeps optional signup outside the isolated Playground component and never transfers session state", () => {

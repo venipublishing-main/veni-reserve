@@ -179,3 +179,11 @@ Brand live preview, Back/Review and Discard. Refresh must lose edits. Verify key
 labels/focus and narrow-screen wrapping. Direct `/app/customize` must reach the account
 gate. Confirm existing demo/reception interactions separately. No visual PASS is claimed
 from SSR, unit or HTTP checks.
+
+## Independent continuation: discovery and synthetic identity contracts
+
+See [federation feasibility and origin recommendation](veni-account-federation-feasibility.md).
+The parent-site discovery is now prepared against current production main in an
+unpublished feature branch/draft PR; the older preview repository was not used.
+Reserve home now exposes the existing gated Business setup and Public booking entry.
+Actual /app and /auth gates remain unchanged. Test-only fixtures add no runtime Auth.
