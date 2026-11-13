@@ -3,6 +3,7 @@ import { type RouteConfig, index, route } from "@react-router/dev/routes";
 const preview = process.env.CLOUDFLARE_ENV === "app_preview";
 export default [
   index("routes/home.tsx"),
+  ...(process.env.VENI_LOCAL_BOOTSTRAP === "1" && process.env.NODE_ENV !== "production" && !preview ? [route("development/business", "routes/local-business.tsx")] : []),
   route("signup", "routes/signup.tsx"),
   route("login", "routes/login.tsx"),
   ...(!preview ? [

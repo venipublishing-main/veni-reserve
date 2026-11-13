@@ -56,7 +56,7 @@ const failure = (code: string,status: number) => reply({error:{code}},status);
 
 export async function businessSettings(request: Request, target: string, env: {
   VENI_ENV: string; SUPABASE_URL?: string; SUPABASE_PUBLISHABLE_KEY?: string;
-}) {
+}): Promise<Response> {
   if (!["GET","PUT"].includes(request.method)) return reply({error:{code:"method_not_allowed"}},405,{Allow:"GET, PUT"});
   if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(target)) return failure("malformed_request",400);
   const bearer = request.headers.get("Authorization");

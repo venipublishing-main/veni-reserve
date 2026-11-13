@@ -15,7 +15,8 @@
     "build:playground-preview": "node preview/build.mjs",
     "verify:playground-preview": "node preview/verify-artifact.mjs",
     "build:ssr-preview": "node ssr-preview/build.mjs",
-    "verify:ssr-preview": "node ssr-preview/verify.mjs"
+    "verify:ssr-preview": "node ssr-preview/verify.mjs",
+    "dev:local-tenant": "node local/start.mjs"
   },
   "dependencies": {
     "isbot": "^5.1.36",

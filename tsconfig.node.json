@@ -1,14 +1,29 @@
 {
   "extends": "./tsconfig.json",
-  "include": ["vite.config.ts", "vitest.config.ts", "react-router.config.ts", "tests/database/*.mjs", "tests/database/*.ts"],
+  "include": [
+    "vite.config.ts",
+    "vitest.config.ts",
+    "react-router.config.ts",
+    "tests/database/*.mjs",
+    "tests/database/*.ts",
+    "local/*.ts",
+    "app/lib/business-settings.server.ts",
+    "app/lib/business-settings.ts",
+    "app/lib/settings-catalogue.json"
+  ],
   "compilerOptions": {
     "allowImportingTsExtensions": true,
     "composite": true,
     "strict": true,
-    "types": ["node"],
-    "lib": ["ES2022"],
+    "types": [
+      "node"
+    ],
+    "lib": [
+      "ES2022"
+    ],
     "target": "ES2022",
     "module": "ES2022",
-    "moduleResolution": "bundler"
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true
   }
 }

@@ -35,7 +35,7 @@ await check("/ready", 503);
 for (const path of ["/app", "/app/onboarding", "/app/settings"]) { const { response } = await check(path, 302, { headers: { Cookie: "synthetic=session", Authorization: "Bearer synthetic", "X-Role": "OWNER" } }); assert(response.headers.get("location").startsWith("/login?next=")); }
 for (const path of ["/auth/callback?code=DO_NOT_REFLECT", "/book/unpublished", "/api/tenants/synthetic/business-settings"]) await check(path, 503);
 for (const method of ["POST", "PUT", "PATCH", "DELETE", "OPTIONS"]) for (const path of ["/signup", "/login", "/auth/callback", "/app/onboarding", "/api/tenants/synthetic/business-settings", "/preview/setup", "/book/unpublished"]) await check(path, 503, { method });
-for (const path of ["/development/setup", "/.env", "/wrangler.jsonc", "/workers/app.ts", "/assets/private.js.map", "/missing"]) await check(path, 404);
+for (const path of ["/development/setup", "/development/business", "/development/local-api/session", "/.env", "/wrangler.jsonc", "/workers/app.ts", "/assets/private.js.map", "/missing"]) await check(path, 404);
 await check("/", 200, { method: "HEAD" });
 const manifest = JSON.parse((await check("/__preview-assets.json")).body); assert.equal(manifest.source, expected);
 for (const [path, hash] of Object.entries(manifest.files)) { const { body } = await check(path); assert.equal(createHash("sha256").update(body).digest("hex"), hash, path); }

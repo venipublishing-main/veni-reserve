@@ -31,3 +31,5 @@ assert.equal((await fetch(base + "/development/setup", { method: "POST" })).stat
 assert.equal((await fetch(base + "/preview/setup")).status, 404, "Online fixture absent outside trusted preview");
 const settings = await fetch(base + "/api/tenants/aaaaaaaa-1111-4444-8888-111111111111/business-settings"); assert.equal(settings.status, 401);
 console.log("PASS account/callback, safe returns, unpublished booking, fixture boundary and anonymous settings. HTTP evidence only; browser acceptance pending.");
+
+for (const path of ["/development/business", "/development/local-api/session"]) assert.equal((await fetch(base + path)).status, 404, "Local authenticated harness excluded from built application");

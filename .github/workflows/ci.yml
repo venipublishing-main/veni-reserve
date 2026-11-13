@@ -101,6 +101,29 @@ jobs:
       - name: Genuine Auth and PostgREST security tests
         run: pnpm test:security
         timeout-minutes: 10
+      - name: Local authenticated UI persistence and restart proof
+        timeout-minutes: 4
+        run: |
+          start_local() {
+            setsid pnpm dev:local-tenant > /tmp/local-tenant.log 2>&1 &
+            local_pid=$!
+            for attempt in $(seq 1 40); do
+              if curl --fail --silent http://127.0.0.1:5192/development/business > /dev/null; then return; fi
+              sleep 1
+            done
+            exit 1
+          }
+          trap 'kill -- "-$local_pid" 2>/dev/null || true' EXIT
+          start_local
+          node local/smoke.mjs
+          kill -- "-$local_pid" 2>/dev/null || true
+          wait "$local_pid" 2>/dev/null || true
+          sleep 2
+          start_local
+          node local/smoke.mjs --resume
+          kill -- "-$local_pid" 2>/dev/null || true
+          wait "$local_pid" 2>/dev/null || true
+          node tests/database/ci.mjs reset
       - name: Verify canonical restoration and fixture hygiene
         run: node tests/database/ci.mjs hygiene
         timeout-minutes: 2
