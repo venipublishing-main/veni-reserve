@@ -17,6 +17,26 @@
         "SUPABASE_URL": "https://opjgaepryqwmsohtajja.supabase.co",
         "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_FTF4-pbZA0KhQY4DubTlXA_ELC_zC0K"
       }
+    },
+    "app_preview": {
+      "name": "vf-reserve-app-preview",
+      "account_id": "c71916b32e9e18b2271be2b081c4f927",
+      "workers_dev": true,
+      "preview_urls": false,
+      "observability": {
+        "enabled": false
+      },
+      "assets": {
+        "run_worker_first": true,
+        "binding": "ASSETS"
+      },
+      "vars": {
+        "VENI_PRODUCT": "reserve",
+        "VENI_ENV": "app_preview"
+      },
+      "limits": {
+        "cpu_ms": 10
+      }
     }
   }
 }

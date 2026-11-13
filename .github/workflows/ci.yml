@@ -37,6 +37,19 @@ jobs:
             sleep 1
           done
           node scripts/site-smoke.mjs http://127.0.0.1:5185
+      - run: pnpm build:ssr-preview
+      - name: Isolated SSR preview HTTP and artifact boundary
+        timeout-minutes: 2
+        run: |
+          node ssr-preview/verify.mjs --for-publication
+          setsid pnpm exec wrangler dev --config build/server/wrangler.json --ip 127.0.0.1 --port 5186 --local > /tmp/ssr-preview.log 2>&1 &
+          ssr_pid=$!
+          trap 'kill -- "-$ssr_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:5186/health > /dev/null; then break; fi
+            sleep 1
+          done
+          node ssr-preview/smoke.mjs http://127.0.0.1:5186
       - run: pnpm build:playground-preview
       - name: Built preview HTTP boundary
         timeout-minutes: 2

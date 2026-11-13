@@ -28,5 +28,6 @@ const fixture = await fetch(base + "/development/setup");
 if (process.argv.includes("--dev")) { assert.equal(fixture.status, 200); assert((await fixture.text()).includes("Local design review only")); }
 else assert.equal(fixture.status, 404, "Fixture excluded from production builds");
 assert.equal((await fetch(base + "/development/setup", { method: "POST" })).status, 405);
+assert.equal((await fetch(base + "/preview/setup")).status, 404, "Online fixture absent outside trusted preview");
 const settings = await fetch(base + "/api/tenants/aaaaaaaa-1111-4444-8888-111111111111/business-settings"); assert.equal(settings.status, 401);
 console.log("PASS account/callback, safe returns, unpublished booking, fixture boundary and anonymous settings. HTTP evidence only; browser acceptance pending.");

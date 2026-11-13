@@ -1,0 +1,34 @@
+import assert from "node:assert/strict";
+import { readFile, readdir, stat } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import process from "node:process";
+import console from "node:console";
+const config = JSON.parse(await readFile("build/server/wrangler.json", "utf8"));
+assert.equal(config.name, "vf-reserve-app-preview");
+assert.equal(config.account_id, "c71916b32e9e18b2271be2b081c4f927");
+assert.equal(config.targetEnvironment, "app_preview");
+assert.deepEqual(config.vars, { VENI_PRODUCT: "reserve", VENI_ENV: "app_preview" });
+assert.equal(config.workers_dev, true); assert.equal(config.preview_urls, false);
+assert.deepEqual(config.assets, { binding: "ASSETS", run_worker_first: true, directory: "../client" });
+assert.deepEqual(config.limits, { cpu_ms: 10 });
+assert.deepEqual(config.observability, { enabled: false });
+const permitted = new Set(["configPath", "userConfigPath", "topLevelName", "definedEnvironments", "targetEnvironment", "account_id", "compatibility_date", "compatibility_flags", "jsx_factory", "jsx_fragment", "rules", "name", "main", "assets", "workers_dev", "preview_urls", "vars", "observability", "python_modules", "dev", "no_bundle", "limits"]);
+const empty = v => v == null || (Array.isArray(v) ? v.length === 0 : typeof v === "object" && Object.values(v).every(empty));
+for (const [key, value] of Object.entries(config)) if (!permitted.has(key)) assert(empty(value), `Unexpected configuration: ${key}`);
+assert((await readFile("build/client/.assetsignore", "utf8")).includes(".vite/"), "Build metadata must not be uploaded");
+const manifest = JSON.parse(await readFile("build/client/__preview-assets.json", "utf8"));
+const source = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+assert.equal(manifest.source, source); assert.equal(manifest.artifact, "reserve-ssr-preview-v1");
+assert((await readFile("build/server/index.js", "utf8")).includes(source));
+for (const [path, hash] of Object.entries(manifest.files)) assert.equal(createHash("sha256").update(await readFile(`build/client${path}`)).digest("hex"), hash, path);
+for (const root of ["build/client", "build/server"]) for (const name of await readdir(root, { recursive: true })) {
+  const path = `${root}/${name}`;
+  if (!(await stat(path)).isFile()) continue;
+  assert(!/\.(?:map|pem|key|crt)$|(?:^|[\\/])\.env/.test(name), `Private artifact: ${name}`);
+  if (root.endsWith("client")) assert(/^(?:assets[\\/][^/\\]+\.(?:js|css)|__preview-assets\.json|\.assetsignore|\.vite[\\/]manifest\.json)$/.test(name), `Unexpected public file: ${name}`);
+  const content = await readFile(path, "utf8");
+  assert(!/supabase\.co|sb_publishable_[a-zA-Z0-9_-]+|sb_secret_|SUPABASE_URL|SUPABASE_PUBLISHABLE_KEY|BEGIN (?:RSA |EC )?PRIVATE KEY|service_role/.test(content), `Backend/secret reference: ${name}`);
+}
+if (process.argv.includes("--for-publication")) assert.equal(execFileSync("git", ["status", "--porcelain"], { encoding: "utf8" }).trim(), "", "Publication requires a clean tree");
+console.log(`PASS isolated SSR artifact ${source}: ${Object.keys(manifest.files).length} hashed assets; no provider code, bindings or credentials`);

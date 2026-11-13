@@ -187,3 +187,17 @@ The parent-site discovery is now prepared against current production main in an
 unpublished feature branch/draft PR; the older preview repository was not used.
 Reserve home now exposes the existing gated Business setup and Public booking entry.
 Actual /app and /auth gates remain unchanged. Test-only fixtures add no runtime Auth.
+
+## Issue 15 isolated SSR preview
+
+- [x] Separate app_preview build environment; backend route modules excluded.
+- [x] Trusted preview-only unsaved setup review; public development/setup denied.
+- [x] Nonce CSP, noindex/no-store, release identity and hashed public assets.
+- [x] Local typecheck/lint, 463 tests, normal SSR and static Playground build/HTTP checks.
+- [x] Preview-specific artifact and HTTP security checks added to CI.
+- [ ] Exact release-head GitHub validate/database-security: required before publication.
+- [ ] Provider-returned live URL/version/public smoke: record in release PR after gates.
+- [ ] Owner desktop/mobile/keyboard/hydration acceptance; no browser PASS inferred.
+
+See [release and rollback runbook](../ssr-preview-release.md). Existing published
+Playground, parent Pages and dev/staging configurations remain untouched.
