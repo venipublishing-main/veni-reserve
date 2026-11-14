@@ -120,22 +120,30 @@ export async function themeProof({ identity, api }: Context) {
   phase = "verifying REST non-exposure and revocation";
 
   for (const table of ["themes","theme_revisions","theme_revision_events","published_theme_assignments"]) {
+    phase = `public ${table} REST non-exposure`;
     const exposed = await api(`/rest/v1/${table}`, a.token);
     check(exposed.status === 404, `private ${table} not exposed as public REST table`);
+    phase = `private ${table} REST non-exposure`;
     const hidden = await api(`/rest/v1/${table}`, a.token, "GET", undefined, { "Accept-Profile": "private" });
     check(hidden.status === 406, `private ${table} schema unavailable to REST`);
   }
+  phase = "absent publication RPC";
   check((await rpc("publish_tenant_theme", a, { target: ta, theme })).status === 404,
     "no public publication RPC exists");
+  phase = "revoking reader membership";
   sql(`update public.memberships set status='REVOKED' where id='${readerMembership}'`);
+  phase = "revoked reader access";
   check((await read(reader, theme)).data.error === "tenant_unavailable", "revoked member immediately loses private Theme access");
+  phase = "owner provider logout";
   check((await api("/auth/v1/logout?scope=local", a.token, "POST")).ok, "provider logout revokes owner session");
+  phase = "revoked owner read and write";
   check((await read(a, theme)).data.error === "unauthorized", "revoked live session cannot read with old JWT");
   check((await save(a, theme, 3, tokens)).data.error === "unauthorized", "revoked live session cannot write with old JWT");
   check(sql("select count(*) from private.published_theme_assignments") === "0", "no unauthorized public activation");
   console.log(`Theme Revision genuine Auth/RLS/isolation/concurrency/journal tests: ${assertions} PASS`);
   } catch (error) {
-    console.error(`Theme proof stopped during ${phase}.`);
+    const category = error instanceof Error ? error.name : "UnknownError";
+    console.error(`Theme proof stopped during ${phase} (${category}; details redacted).`);
     throw error;
   }
 }
