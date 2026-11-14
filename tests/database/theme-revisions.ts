@@ -131,7 +131,10 @@ export async function themeProof({ identity, api }: Context) {
   check((await rpc("publish_tenant_theme", a, { target: ta, theme })).status === 404,
     "no public publication RPC exists");
   phase = "revoking reader membership";
-  sql(`update public.memberships set status='REVOKED' where id='${readerMembership}'`);
+  // The canonical ownership invariant requires SERIALIZABLE for all Membership writes.
+  sql(`begin isolation level serializable;
+    update public.memberships set status='REVOKED' where id='${readerMembership}';
+    commit;`);
   phase = "revoked reader access";
   check((await read(reader, theme)).data.error === "tenant_unavailable", "revoked member immediately loses private Theme access");
   phase = "owner provider logout";
