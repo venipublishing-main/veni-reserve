@@ -42,7 +42,7 @@ select columns_are('private','theme_revision_events',array['id','tenant_id','the
   'action','actor_user_id','actor_membership_id','occurred_at','correlation_id']);
 select columns_are('private','published_theme_assignments',array['tenant_id','theme_id','revision',
   'generation','assigned_at','actor_user_id']);
-select throws_ok($$truncate private.theme_revisions$$,'23514',null,'history cannot be truncated');
+select throws_ok($$truncate private.theme_revisions$$,'0A000',null,'history cannot be truncated through its foreign-key dependants');
 select throws_ok($$truncate private.theme_revision_events$$,'23514',null,'event journal cannot be truncated');
 select is((select count(*) from private.published_theme_assignments),0::bigint,'no public assignment in draft slice');
 select is((select count(*) from pg_proc where proname in ('list_tenant_themes','read_tenant_theme',
