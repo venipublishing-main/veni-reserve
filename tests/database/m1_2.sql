@@ -5,7 +5,7 @@ select no_plan();
 
 -- Independent inventory: no policy on permissions or private history relations.
 select results_eq($$select jsonb_build_array(schemaname,tablename,policyname,cmd,roles) from pg_policies
- where schemaname in ('public','private') and roles<>array['veni_bootstrap_executor']::name[] and not (schemaname='private' and tablename in ('settings_reference','tenant_business_settings','tenant_business_settings_changes')) order by tablename$$,
+ where schemaname in ('public','private') and roles<>array['veni_bootstrap_executor']::name[] and not (schemaname='private' and tablename in ('settings_reference','tenant_business_settings','tenant_business_settings_changes','themes','theme_revisions','theme_revision_events','published_theme_assignments')) order by tablename$$,
  $$values
  ('["public","audit_events","audit_events_select_authenticated","SELECT",["authenticated"]]'::jsonb),
  ('["public","membership_roles","membership_roles_select_authenticated","SELECT",["authenticated"]]'::jsonb),
@@ -16,7 +16,7 @@ select results_eq($$select jsonb_build_array(schemaname,tablename,policyname,cmd
  ('["public","users","users_select_authenticated","SELECT",["authenticated"]]'::jsonb)$$,
  'Exact seven SELECT-only authenticated policies');
 select ok(bool_and(qual is not null and qual <> 'true' and with_check is null), 'No blanket or write predicates')
- from pg_policies where schemaname in ('public','private') and roles<>array['veni_bootstrap_executor']::name[] and not (schemaname='private' and tablename in ('settings_reference','tenant_business_settings','tenant_business_settings_changes'));
+ from pg_policies where schemaname in ('public','private') and roles<>array['veni_bootstrap_executor']::name[] and not (schemaname='private' and tablename in ('settings_reference','tenant_business_settings','tenant_business_settings_changes','themes','theme_revisions','theme_revision_events','published_theme_assignments'));
 
 create temporary table app_relations(name text primary key, readable boolean);
 insert into app_relations values ('public.tenants',true),('public.users',true),('public.memberships',true),
@@ -57,7 +57,10 @@ select ok(p.prosrc !~* '\m(execute|insert|update|delete|truncate|set[[:space:]]+
 select is(has_function_privilege(r,signature,'EXECUTE'),r='authenticated',r||' exact helper EXECUTE '||signature)
  from helpers cross join unnest(array['anon','authenticated','service_role']) r;
 select results_eq($$select p.oid::regprocedure::text from pg_proc p join pg_namespace n on n.oid=p.pronamespace
- where n.nspname='private' and p.oid not in ('private.authenticated_session_user()'::regprocedure,'private.bootstrap_setup_tenant(uuid)'::regprocedure,'private.read_tenant_business_settings(uuid)'::regprocedure,'private.save_tenant_business_settings(uuid,integer,text,text,text,text,text,text)'::regprocedure) and has_function_privilege('authenticated',p.oid,'EXECUTE') order by 1$$,
+ where n.nspname='private' and p.oid not in ('private.authenticated_session_user()'::regprocedure,'private.bootstrap_setup_tenant(uuid)'::regprocedure,'private.read_tenant_business_settings(uuid)'::regprocedure,'private.save_tenant_business_settings(uuid,integer,text,text,text,text,text,text)'::regprocedure,
+ 'private.list_tenant_themes(uuid)'::regprocedure,'private.read_tenant_theme(uuid,uuid)'::regprocedure,
+ 'private.read_tenant_theme_revision(uuid,uuid,integer)'::regprocedure,'private.create_tenant_theme(uuid,text,jsonb)'::regprocedure,
+ 'private.save_tenant_theme_revision(uuid,uuid,integer,jsonb)'::regprocedure) and has_function_privilege('authenticated',p.oid,'EXECUTE') order by 1$$,
  $$select signature from helpers order by 1$$,'Exactly eight executable signatures; integrity triggers not exposed');
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace,
  lateral aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where n.nspname='private' and (a.grantee=0 or a.is_grantable and a.grantee='authenticated'::regrole)),
