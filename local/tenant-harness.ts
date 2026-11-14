@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Plugin } from "vite";
 import { businessSettings } from "../app/lib/business-settings.server";
+import { newThemeInput, savedThemeInput, themeRecord, themeSummaries, themeVersion } from "../app/lib/theme-revisions";
 import { guardEnvironment } from "../tests/database/ci.mjs";
 const origin = "http://127.0.0.1:5192", provider = "http://127.0.0.1:54321";
 const cookieName = "reserve_local_session", receiptName = "reserve_local_request";
@@ -48,6 +49,19 @@ export function createLocalHandler(state: State) {
     const rows: unknown = await response.json();
     if (!Array.isArray(rows) || rows.some(row => !object(row) || !uuid(row.id))) throw new Error("Invalid tenant lookup");
     return rows;
+  }
+  const themeErrors: Record<string, number> = {
+    unauthorized: 403, tenant_unavailable: 404, theme_unavailable: 404,
+    invalid_input: 422, revision_conflict: 409, duplicate_name: 409, dependency_unavailable: 503,
+  };
+  async function themeCall(name: string, token: string, body: object,
+    validate: (data: unknown) => boolean, successStatus = 200) {
+    const result = await rpc(name, token, body);
+    if (!result.ok) return reply({ error: "theme_dependency_unavailable" }, 503);
+    const value: unknown = await result.json();
+    if (object(value) && typeof value.error === "string" && Object.hasOwn(themeErrors, value.error))
+      return reply({ error: value.error }, themeErrors[value.error]);
+    return validate(value) ? reply(value, successStatus) : reply({ error: "theme_dependency_unavailable" }, 503);
   }
   return async (request: Request): Promise<Response> => {
     if (!localHarnessAllowed(request)) return reply({ error: "local_origin_required" }, 403);
@@ -108,6 +122,37 @@ export function createLocalHandler(state: State) {
         if (!(await tenants(token)).some(tenant => tenant.id === selected[1])) return reply({ error: "tenant_unavailable" }, 404);
         const forwarded = new Request(request, { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } });
         return businessSettings(forwarded, selected[1], { VENI_ENV: "dev", SUPABASE_URL: provider, SUPABASE_PUBLISHABLE_KEY: state.PUBLISHABLE_KEY });
+      }
+      const themePath = /^\/tenants\/([a-f0-9-]{36})\/themes(?:\/([a-f0-9-]{36})(?:\/revisions\/([0-9]+))?)?$/.exec(path);
+      if (themePath) {
+        const [, tenantId, themeId, revisionId] = themePath;
+        if (!uuid(tenantId) || (themeId && !uuid(themeId))) return reply({ error: "malformed_request" }, 400);
+        if (!(await tenants(token)).some(t => t.id === tenantId)) return reply({ error: "tenant_unavailable" }, 404);
+        if (!themeId && request.method === "GET") return themeCall("list_tenant_themes", token, { target: tenantId }, themeSummaries);
+        if (!themeId && request.method === "POST") {
+          let input: unknown;
+          try { input = await request.json(); } catch { return reply({ error: "malformed_request" }, 400); }
+          const fields = newThemeInput(input);
+          return fields ? themeCall("create_tenant_theme", token, { target: tenantId, ...fields }, themeRecord, 201)
+            : reply({ error: "invalid_input" }, 422);
+        }
+        if (themeId && !revisionId && request.method === "GET")
+          return themeCall("read_tenant_theme", token, { target: tenantId, theme: themeId }, themeRecord);
+        if (themeId && !revisionId && request.method === "PUT") {
+          let input: unknown;
+          try { input = await request.json(); } catch { return reply({ error: "malformed_request" }, 400); }
+          const fields = savedThemeInput(input);
+          return fields ? themeCall("save_tenant_theme_revision", token,
+            { target: tenantId, theme: themeId, ...fields }, themeRecord) : reply({ error: "invalid_input" }, 422);
+        }
+        if (themeId && revisionId && request.method === "GET") {
+          const requested = Number(revisionId);
+          if (!Number.isSafeInteger(requested) || requested < 1 || requested > 2147483646)
+            return reply({ error: "invalid_input" }, 422);
+          return themeCall("read_tenant_theme_revision", token,
+            { target: tenantId, theme: themeId, requested }, themeVersion);
+        }
+        return reply({ error: "method_not_allowed" }, 405);
       }
       return reply({ error: "not_found" }, 404);
     } catch { return reply({ error: "local_dependency_unavailable_retry_same_request" }, 503); }

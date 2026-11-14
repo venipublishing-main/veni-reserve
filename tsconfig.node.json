@@ -9,6 +9,7 @@
     "local/*.ts",
     "app/lib/business-settings.server.ts",
     "app/lib/business-settings.ts",
+    "app/lib/theme-revisions.ts",
     "app/lib/settings-catalogue.json"
   ],
   "compilerOptions": {

@@ -256,7 +256,7 @@ select ok(c.relrowsecurity,n.nspname||'.'||c.relname||' has RLS')
  from pg_class c join pg_namespace n on n.oid=c.relnamespace
  where (n.nspname='public' and c.relname in ('permissions','roles','role_permissions','membership_roles','audit_events'))
  or (n.nspname='private' and c.relname in ('invitations','invitation_roles'));
-select is((select count(*) from pg_policies where schemaname in ('public','private') and roles<>array['veni_bootstrap_executor']::name[] and not (schemaname='private' and tablename in ('settings_reference','tenant_business_settings','tenant_business_settings_changes'))),7::bigint,'AR-028 seven SELECT policies');
+select is((select count(*) from pg_policies where schemaname in ('public','private') and roles<>array['veni_bootstrap_executor']::name[] and not (schemaname='private' and tablename in ('settings_reference','tenant_business_settings','tenant_business_settings_changes','themes','theme_revisions','theme_revision_events','published_theme_assignments'))),7::bigint,'AR-028 seven SELECT policies');
 select ok(not has_table_privilege(r,t,'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
  and has_table_privilege(r,t,'SELECT') = (r='authenticated' and t in
  ('public.roles','public.role_permissions','public.membership_roles','public.audit_events')),r||' AR-028 privileges '||t)

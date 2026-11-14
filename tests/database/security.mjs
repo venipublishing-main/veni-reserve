@@ -1,4 +1,5 @@
 import { bootstrapProof } from "./tenant-bootstrap.ts";
+import { themeProof } from "./theme-revisions.ts";
 import { settingsProof } from "./m2_1_security.ts";
 import console from "node:console";
 import { randomUUID } from "node:crypto";
@@ -223,4 +224,5 @@ await withLocalSecurity(async context => {
   console.log(`Real Auth/PostgREST security assertions: ${assertions} PASS`);
   await settingsProof(context);
   await bootstrapProof(context);
+  await themeProof(context);
 });
