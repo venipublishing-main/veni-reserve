@@ -4,6 +4,7 @@ import type { LoaderFunctionArgs } from "react-router";
 import { localReviewAllowed, privateHeaders } from "../lib/product-access.server";
 import { SiteShell } from "../features/site/shell";
 import { SetupReview } from "../features/site/setup-review";
+import { LocalThemeStudio } from "../features/site/local-theme-studio";
 export function loader({ request }: LoaderFunctionArgs) {
   if (!localReviewAllowed(request, import.meta.env.DEV, env.VENI_ENV)) throw new Response("Not found", { status: 404, headers: privateHeaders });
   return null;
@@ -46,6 +47,7 @@ export default function LocalBusiness() {
       </form>}
     </>}
     <p role="status" aria-live="polite">{message}</p>
+    {session && selected && revision > 0 && <LocalThemeStudio key={selected} tenantId={selected} />}
     <details><summary>Brand / Theme Studio — separate unsaved demonstration</summary><p>Business saves above do not save a Theme or Theme Revision. No publishing exists.</p><SetupReview /></details>
   </SiteShell>;
 }
