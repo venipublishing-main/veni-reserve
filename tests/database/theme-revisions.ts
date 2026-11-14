@@ -11,12 +11,15 @@ const tokens = { primary: "#244b42", accent: "#d8e9d9", typography: "system" };
 
 export async function themeProof({ identity, api }: Context) {
   let assertions = 0;
+  let phase = "creating genuine Auth identities";
   function check(ok: unknown, label: string) {
     if (!ok) { console.error(`Theme security FAIL: ${label}`); throw new Error("Theme security proof failed"); }
     assertions++;
   }
+  try {
   const a = await identity(), b = await identity(), reader = await identity(), roleless = await identity();
   const none = await identity(), anonymous = await identity(true);
+  phase = "creating isolated test Tenants";
   async function rpc(name: string, actor: Actor, body: object = {}) {
     const response = await api(`/rest/v1/rpc/${name}`, actor.token, "POST", body);
     return { status: response.status, data: await response.json() as Record<string, unknown> };
@@ -28,6 +31,7 @@ export async function themeProof({ identity, api }: Context) {
     return String(value.tenant_id);
   }
   const ta = await createTenant(a), tb = await createTenant(b);
+  phase = "assigning reader and roleless memberships";
   const readerMembership = randomUUID(), zeroMembership = randomUUID();
   sql(`begin isolation level serializable;
     insert into public.users(id) values('${reader.id}'),('${roleless.id}');
@@ -36,6 +40,7 @@ export async function themeProof({ identity, api }: Context) {
       ('${zeroMembership}','${ta}','${roleless.id}','ACTIVE');
     insert into public.membership_roles(membership_id,role_id) values('${readerMembership}','${reception}');
     commit;`);
+  phase = "creating and reading first private Theme";
   const list = (actor: Actor, tenant = ta) => rpc("list_tenant_themes", actor, { target: tenant });
   const read = (actor: Actor, theme: string, tenant = ta) => rpc("read_tenant_theme", actor, { target: tenant, theme });
   const version = (actor: Actor, theme: string, requested: number, tenant = ta) =>
@@ -71,6 +76,7 @@ export async function themeProof({ identity, api }: Context) {
   }
   const changed = { primary: "#FFFFFF", accent: "#008877", typography: "serif" };
   const after = await save(a, theme, 1, changed);
+  phase = "verifying immutable revision history and concurrency";
   check(after.data.current_revision === 2 && object(after.data.tokens).primary === "#ffffff", "new revision canonicalizes hex tokens");
   check((await save(a, theme, 1, tokens)).data.error === "revision_conflict", "stale revision cannot overwrite newer draft");
   check(object((await version(a, theme, 1)).data.tokens).primary === tokens.primary, "old immutable revision still available");
@@ -87,6 +93,7 @@ export async function themeProof({ identity, api }: Context) {
     "three attributed append-only audit events committed");
   const blocked = sql(`select count(*) from private.published_theme_assignments`);
   check(blocked === "0", "draft saves never publish");
+  phase = "verifying rollback and cross-Tenant foreign keys";
 
   // A deliberate local journal failure must roll back the draft pointer and new revision.
   sql("alter table private.theme_revision_events add constraint theme_event_fault check(false) not valid");
@@ -110,6 +117,7 @@ export async function themeProof({ identity, api }: Context) {
   try { sql(`update private.theme_revisions set tokens=tokens where theme_id='${theme}'`); }
   catch { immutable = true; }
   check(immutable, "immutable revision UPDATE trigger rejects even privileged mutation");
+  phase = "verifying REST non-exposure and revocation";
 
   for (const table of ["themes","theme_revisions","theme_revision_events","published_theme_assignments"]) {
     const exposed = await api(`/rest/v1/${table}`, a.token);
@@ -126,4 +134,8 @@ export async function themeProof({ identity, api }: Context) {
   check((await save(a, theme, 3, tokens)).data.error === "unauthorized", "revoked live session cannot write with old JWT");
   check(sql("select count(*) from private.published_theme_assignments") === "0", "no unauthorized public activation");
   console.log(`Theme Revision genuine Auth/RLS/isolation/concurrency/journal tests: ${assertions} PASS`);
+  } catch (error) {
+    console.error(`Theme proof stopped during ${phase}.`);
+    throw error;
+  }
 }
