@@ -211,7 +211,8 @@ export function createLocalVeniOAuth(config: LocalOAuthConfig, { fetcher = fetch
       const credentials = btoa(`${config.clientId}:${config.clientSecret}`);
       proofStage = "exchange-oauth-code";
       const tokenResponse = await providerRequest("/auth/v1/oauth/token", { method: "POST", headers: {
-        Authorization: `Basic ${credentials}`, "Content-Type": "application/x-www-form-urlencoded"
+        apikey: config.publishableKey, Authorization: `Basic ${credentials}`,
+        "Content-Type": "application/x-www-form-urlencoded"
       }, body });
       proofStage = "parse-oauth-token";
       const received: unknown = await tokenResponse.json();
