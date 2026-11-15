@@ -32,7 +32,7 @@ function mockClient({ token = makeToken(), userId = USER, liveId = USER, tokenRe
   const calls = [];
   const fetcher = async (url, init) => {
     calls.push({ url, init });
-    assert.equal(init.redirect, "error");
+    assert.equal(init.redirect, "manual");
     assert.ok(url.startsWith(`${LOCAL_SUPABASE_ORIGIN}/`), "no external network hosts");
     const endpoint = new URL(url).pathname;
     if (endpoint === "/auth/v1/oauth/token") return json({ access_token: token, token_type: "bearer" }, tokenResponseStatus);
@@ -210,4 +210,16 @@ test("never accepts remote, cross-origin, duplicate, non-GET or query-bearing st
   assert.equal((await client.status(request("/development/veni-account", [
     "vr_local_oauth_session=a", "vr_local_oauth_session=b"
   ]))).status, 401);
+});
+
+
+test("rejects every provider 3xx response without following a redirect", async () => {
+  for (const options of [{ tokenResponseStatus: 302 }, { authStatus: 302 }, { liveStatus: 302 }]) {
+    const { client, calls } = mockClient(options);
+    const flow = await initiate(client);
+    const response = await finish(client, flow);
+    assert.equal(response.status, 503);
+    assert.ok(calls.length >= 1 && calls.every(call => call.init.redirect === "manual"));
+    assert.ok(!cookieValue(response, "vr_local_oauth_session"));
+  }
 });
