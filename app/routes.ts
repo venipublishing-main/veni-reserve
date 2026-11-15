@@ -1,12 +1,19 @@
 import { type RouteConfig, index, route } from "@react-router/dev/routes";
 
 const preview = process.env.CLOUDFLARE_ENV === "app_preview";
+const localOAuth = process.env.VENI_LOCAL_OAUTH === "1" &&
+  process.env.NODE_ENV !== "production" && !preview;
 export default [
   index("routes/home.tsx"),
   ...(process.env.VENI_LOCAL_BOOTSTRAP === "1" && process.env.NODE_ENV !== "production" && !preview ? [route("development/business", "routes/local-business.tsx")] : []),
   route("signup", "routes/signup.tsx"),
   route("login", "routes/login.tsx"),
   ...(!preview ? [
+    ...(localOAuth ? [
+      route("auth/veni/start", "routes/veni-oauth-start.ts"),
+      route("auth/veni/callback", "routes/veni-oauth-callback.ts"),
+      route("development/veni-account", "routes/veni-oauth-account.tsx")
+    ] : []),
     route("app/*", "routes/app-gate.ts"),
     route("auth/*", "routes/auth-gate.ts"),
     route("book/:tenant_slug", "routes/booking-gate.tsx"),
