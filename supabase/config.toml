@@ -370,7 +370,7 @@ enabled = false
 # This config is NOT deployed or pushed to any hosted Supabase project.
 enabled = true
 # Path for OAuth consent flow UI
-authorization_url_path = "/oauth/consent"
+authorization_url_path = "/account/authorize/"
 # Allow dynamic client registration
 allow_dynamic_registration = false
 
