@@ -92,7 +92,7 @@ async function beginAndInspect(firstPartyToken, expectedNext) {
   phase = "real OAuth authorize redirect";
   const upstream = await provider(`${authorize.pathname}${authorize.search}`);
   const consent = redirectUrl(upstream, PROVIDER);
-  check(consent.origin === "http://127.0.0.1:3000" && consent.pathname === "/oauth/consent", "parent consent destination");
+  check(consent.origin === "http://127.0.0.1:3000" && consent.pathname === "/account/authorize/", "parent consent destination");
   const authorizationId = consent.searchParams.get("authorization_id");
   check(!!authorizationId && /^[A-Za-z0-9._~-]{8,512}$/.test(authorizationId), "opaque authorization ID");
 
