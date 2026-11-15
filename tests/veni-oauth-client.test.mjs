@@ -1,3 +1,6 @@
+// @ts-nocheck — Node 24 executes the TypeScript module directly; the repository
+// typechecks its production TypeScript separately, while this .mjs mock suite is
+// validated at runtime with node --experimental-strip-types --test.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
