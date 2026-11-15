@@ -21,7 +21,8 @@ const ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 const proofStages = new Set(["validate-callback", "exchange-oauth-code", "parse-oauth-token",
   "verify-auth-user", "verify-live-rpc", "verify-claims", "seal-local-session"]);
 const safeProofStage = value => proofStages.has(value) ||
-  /^token-http-(?:0|400|401|403|404|429|500|502|503)-(?:unclassified|invalid-client|invalid-grant|invalid-request|unauthorized-client|unsupported-grant-type|invalid-scope|server-error)$/.test(value);
+  /^token-http-(?:0|301|302|303|307|308|400|401|403|404|429|500|502|503)-(?:unclassified|invalid-client|invalid-grant|invalid-request|unauthorized-client|unsupported-grant-type|invalid-scope|server-error)$/.test(value) ||
+  /^token-fetch-(?:type-error|timeout-error|abort-error|other)-(?:refused|dns|timeout|other)$/.test(value);
 const require = createRequire(import.meta.url);
 const cli = join(dirname(require.resolve("supabase/package.json")), "dist/supabase.js");
 const flags = { redirect: "manual" };
