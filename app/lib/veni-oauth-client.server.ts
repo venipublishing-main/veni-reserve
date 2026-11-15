@@ -210,10 +210,25 @@ export function createLocalVeniOAuth(config: LocalOAuthConfig, { fetcher = fetch
         redirect_uri: CALLBACK, code_verifier: transaction.verifier });
       const credentials = btoa(`${config.clientId}:${config.clientSecret}`);
       proofStage = "exchange-oauth-code";
-      const tokenResponse = await providerRequest("/auth/v1/oauth/token", { method: "POST", headers: {
+      const tokenResponse = await fetcher(`${AUTH}/oauth/token`, { method: "POST", headers: {
         apikey: config.publishableKey, Authorization: `Basic ${credentials}`,
         "Content-Type": "application/x-www-form-urlencoded"
-      }, body });
+      }, body, redirect: "error", signal: AbortSignal.timeout(5000) });
+      if (!tokenResponse.ok) {
+        let code = "unclassified";
+        try {
+          const errorBody: unknown = await tokenResponse.json();
+          const kind = errorBody && typeof errorBody === "object" && !Array.isArray(errorBody) ?
+            (errorBody as Record<string, unknown>).error : "";
+          if (typeof kind === "string" && ["invalid_client", "invalid_grant", "invalid_request",
+              "unauthorized_client", "unsupported_grant_type", "invalid_scope", "server_error"].includes(kind))
+            code = kind.replaceAll("_", "-");
+        } catch { /* Intentionally ignore untrusted provider bodies. */ }
+        const status = [400, 401, 403, 404, 429, 500, 502, 503].includes(tokenResponse.status) ?
+          tokenResponse.status : 0;
+        proofStage = `token-http-${status}-${code}`;
+        return failWithClear(503);
+      }
       proofStage = "parse-oauth-token";
       const received: unknown = await tokenResponse.json();
       if (!received || typeof received !== "object" || Array.isArray(received)) return failWithClear(503);
