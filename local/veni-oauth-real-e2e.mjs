@@ -2,7 +2,6 @@
  * Uses a real local GoTrue instance, fictional user, temporary OAuth client and
  * Worker development server. It NEVER accepts a hosted Supabase origin. */
 import assert from "node:assert/strict";
-import { Buffer } from "node:buffer";
 import { spawn, execFileSync } from "node:child_process";
 import console from "node:console";
 import { randomBytes, randomUUID } from "node:crypto";
