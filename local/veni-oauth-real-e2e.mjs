@@ -190,7 +190,10 @@ try {
 
   phase = "Reserve SSR callback and real Auth/RLS verification";
   const callback = await browser(accepted, approved.transaction);
-  check(callback.status === 303, `callback HTTP status ${callback.status} (expected 303)`);
+  const stage = callback.headers.get("X-Veni-Local-Proof-Stage");
+  const stages = new Set(["validate-callback", "exchange-oauth-code", "parse-oauth-token",
+    "verify-auth-user", "verify-live-rpc", "verify-claims", "seal-local-session"]);
+  check(callback.status === 303, `callback HTTP status ${callback.status}, stage ${stages.has(stage) ? stage : "opaque"} (expected 303)`);
   check(redirectUrl(callback, APP).pathname === "/development/veni-account", "Reserve accepts only verified identity");
   const sessionCookie = cookie(callback, "vr_local_oauth_session");
   check(!!sessionCookie, "short-lived HttpOnly connected session");
