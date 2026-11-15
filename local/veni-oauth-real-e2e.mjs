@@ -190,6 +190,7 @@ try {
 
   phase = "Reserve SSR callback and real Auth/RLS verification";
   const callback = await browser(accepted, approved.transaction);
+  check(callback.status === 303, `callback HTTP status ${callback.status} (expected 303)`);
   check(redirectUrl(callback, APP).pathname === "/development/veni-account", "Reserve accepts only verified identity");
   const sessionCookie = cookie(callback, "vr_local_oauth_session");
   check(!!sessionCookie, "short-lived HttpOnly connected session");
@@ -212,9 +213,11 @@ try {
   check(afterRevoke.status === 200 && revokedHTML.includes("No verified local Veni Account session"),
     "deleted synthetic Auth user cannot reuse Reserve status cookie");
   finished = true;
-} catch {
-  // No stack traces, URLs, request objects or secrets in CI logs.
-  console.error(`Real disposable OAuth2/PKCE + Reserve SSR: FAIL at ${phase}; details withheld.`);
+} catch (error) {
+  // Assertion labels are static except safe HTTP status codes. Never show raw
+  // provider bodies, token material, URLs, stack traces or client secrets.
+  const diagnostic = error?.code === "ERR_ASSERTION" ? ` (${error.message})` : " (unexpected local error)";
+  console.error(`Real disposable OAuth2/PKCE + Reserve SSR: FAIL at ${phase}${diagnostic}; details withheld.`);
   process.exitCode = 1;
 } finally {
   if (appProcess?.pid) {
