@@ -183,6 +183,8 @@ export function createLocalVeniOAuth(config: LocalOAuthConfig, { fetcher = fetch
     const failWithClear = (status: number) => {
       const r = fail(status);
       r.headers.append("Set-Cookie", clear);
+      // Temporary static-stage trace for a disposable, local-only CI receiving client.
+      if (status === 503) console.error(`VENI-LOCAL-PROOF-STAGE:${proofStage}`);
       // CI-only, loopback-only categorical trace; never include secrets or raw provider errors.
       if (typeof process !== "undefined" && process.env.GITHUB_ACTIONS === "true" &&
           process.env.VENI_LOCAL_OAUTH === "1") r.headers.set("X-Veni-Local-Proof-Stage", proofStage);
