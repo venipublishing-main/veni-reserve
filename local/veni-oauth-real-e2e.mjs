@@ -20,6 +20,8 @@ const DEV_VARS = join(ROOT, ".dev.vars");
 const ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 const proofStages = new Set(["validate-callback", "exchange-oauth-code", "parse-oauth-token",
   "verify-auth-user", "verify-live-rpc", "verify-claims", "seal-local-session"]);
+const safeProofStage = value => proofStages.has(value) ||
+  /^token-http-(?:0|400|401|403|404|429|500|502|503)-(?:unclassified|invalid-client|invalid-grant|invalid-request|unauthorized-client|unsupported-grant-type|invalid-scope|server-error)$/.test(value);
 const require = createRequire(import.meta.url);
 const cli = join(dirname(require.resolve("supabase/package.json")), "dist/supabase.js");
 const flags = { redirect: "manual" };
@@ -181,8 +183,8 @@ try {
   for (const stream of [appProcess.stdout, appProcess.stderr]) {
     stream.on("data", chunk => {
       outputTail = (outputTail + String(chunk)).slice(-16384);
-      const match = outputTail.match(/VENI-LOCAL-PROOF-STAGE:([a-z-]+)/);
-      if (match && proofStages.has(match[1])) proofTrace = match[1];
+      const match = outputTail.match(/VENI-LOCAL-PROOF-STAGE:([a-z0-9-]+)/);
+      if (match && safeProofStage(match[1])) proofTrace = match[1];
     });
   }
   await waitForApp();
@@ -206,7 +208,7 @@ try {
   const callback = await browser(accepted, approved.transaction);
   if (callback.status !== 303) await delay(100);
   const stage = callback.headers.get("X-Veni-Local-Proof-Stage");
-  check(callback.status === 303, `callback HTTP status ${callback.status}, stage ${proofStages.has(stage) ? stage : proofTrace || "opaque"} (expected 303)`);
+  check(callback.status === 303, `callback HTTP status ${callback.status}, stage ${safeProofStage(stage) ? stage : proofTrace || "opaque"} (expected 303)`);
   check(redirectUrl(callback, APP).pathname === "/development/veni-account", "Reserve accepts only verified identity");
   const sessionCookie = cookie(callback, "vr_local_oauth_session");
   check(!!sessionCookie, "short-lived HttpOnly connected session");
