@@ -95,6 +95,9 @@ jobs:
       - name: Reconstruct migrations from scratch
         run: node tests/database/ci.mjs reset
         timeout-minutes: 4
+      - name: Real local OAuth2 consent, PKCE and Reserve SSR boundary
+        run: node local/veni-oauth-real-e2e.mjs
+        timeout-minutes: 6
       - name: Database and real-connection integrity tests
         run: pnpm test:db
         timeout-minutes: 5
@@ -124,9 +127,6 @@ jobs:
           kill -- "-$local_pid" 2>/dev/null || true
           wait "$local_pid" 2>/dev/null || true
           node tests/database/ci.mjs reset
-      - name: Real local OAuth2 consent, PKCE and Reserve SSR boundary
-        run: node local/veni-oauth-real-e2e.mjs
-        timeout-minutes: 6
       - name: Verify canonical restoration and fixture hygiene
         run: node tests/database/ci.mjs hygiene
         timeout-minutes: 2
