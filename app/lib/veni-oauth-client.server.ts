@@ -213,7 +213,7 @@ export function createLocalVeniOAuth(config: LocalOAuthConfig, { fetcher = fetch
       const tokenResponse = await fetcher(`${AUTH}/oauth/token`, { method: "POST", headers: {
         apikey: config.publishableKey, Authorization: `Basic ${credentials}`,
         "Content-Type": "application/x-www-form-urlencoded"
-      }, body, redirect: "error", signal: AbortSignal.timeout(5000) });
+      }, body, redirect: "manual", signal: AbortSignal.timeout(5000) });
       if (!tokenResponse.ok) {
         let code = "unclassified";
         try {
@@ -224,7 +224,7 @@ export function createLocalVeniOAuth(config: LocalOAuthConfig, { fetcher = fetch
               "unauthorized_client", "unsupported_grant_type", "invalid_scope", "server_error"].includes(kind))
             code = kind.replaceAll("_", "-");
         } catch { /* Intentionally ignore untrusted provider bodies. */ }
-        const status = [400, 401, 403, 404, 429, 500, 502, 503].includes(tokenResponse.status) ?
+        const status = [301, 302, 303, 307, 308, 400, 401, 403, 404, 429, 500, 502, 503].includes(tokenResponse.status) ?
           tokenResponse.status : 0;
         proofStage = `token-http-${status}-${code}`;
         return failWithClear(503);
@@ -243,7 +243,21 @@ export function createLocalVeniOAuth(config: LocalOAuthConfig, { fetcher = fetch
       const session: Session = { kind: "session", token, subject: verified.subject,
         next: transaction.next, expires: now() + lifetime };
       return redirect("/development/veni-account", [clear, cookie(SESSION, await seal(session, "session"), lifetime)]);
-    } catch { return failWithClear(503); }
+    } catch (error) {
+      if (proofStage === "exchange-oauth-code") {
+        const kind = error instanceof TypeError ? "type-error" :
+          error instanceof Error && error.name === "TimeoutError" ? "timeout-error" :
+          error instanceof Error && error.name === "AbortError" ? "abort-error" : "other";
+        const cause = error && typeof error === "object" && "cause" in error &&
+          error.cause && typeof error.cause === "object" && "code" in error.cause ?
+          String(error.cause.code) : "";
+        const reason = cause === "ECONNREFUSED" ? "refused" :
+          cause === "ENOTFOUND" ? "dns" :
+          ["ETIMEDOUT", "UND_ERR_CONNECT_TIMEOUT"].includes(cause) ? "timeout" : "other";
+        proofStage = `token-fetch-${kind}-${reason}`;
+      }
+      return failWithClear(503);
+    }
   }
 
   async function status(request: Request) {
