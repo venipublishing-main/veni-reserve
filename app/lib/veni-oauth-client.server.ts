@@ -130,7 +130,8 @@ export function createLocalVeniOAuth(config: LocalOAuthConfig, { fetcher = fetch
     if (!response.ok) throw new Error("provider rejected");
     return response;
   }
-  async function activeSubject(token: string) {
+  async function activeSubject(token: string, mark: (stage: string) => void = () => {}) {
+    mark("verify-auth-user");
     const authResponse = await providerRequest("/auth/v1/user", { headers: {
       apikey: config.publishableKey, Authorization: `Bearer ${token}`
     }});
@@ -140,6 +141,7 @@ export function createLocalVeniOAuth(config: LocalOAuthConfig, { fetcher = fetch
     const subject = (user as Record<string, unknown>).id;
 
     // A signed JWT can survive logout: the database RPC checks auth.sessions.
+    mark("verify-live-rpc");
     const liveResponse = await providerRequest("/rest/v1/rpc/current_reserve_user", {
       method: "POST", headers: { apikey: config.publishableKey,
         Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: "{}"
@@ -148,6 +150,7 @@ export function createLocalVeniOAuth(config: LocalOAuthConfig, { fetcher = fetch
     if (liveId !== subject) throw new Error("revoked or unauthorized session");
 
     // Claim values are consumed ONLY after Auth and the RLS RPC validated this JWT.
+    mark("verify-claims");
     const claims = jwtClaimsAfterAuthCheck(token);
     if (claims.sub !== subject || claims.client_id !== config.clientId || !UUID.test(String(claims.session_id)) ||
         claims.role !== "authenticated" || claims.is_anonymous === true ||
@@ -176,7 +179,15 @@ export function createLocalVeniOAuth(config: LocalOAuthConfig, { fetcher = fetch
   async function callback(request: Request) {
     if (!allowed(request) || new URL(request.url).pathname !== "/auth/veni/callback") return fail(404);
     const clear = cookie(TX, "", 0);
-    const failWithClear = (status: number) => { const r = fail(status); r.headers.append("Set-Cookie", clear); return r; };
+    let proofStage = "validate-callback";
+    const failWithClear = (status: number) => {
+      const r = fail(status);
+      r.headers.append("Set-Cookie", clear);
+      // CI-only, loopback-only categorical trace; never include secrets or raw provider errors.
+      if (typeof process !== "undefined" && process.env.GITHUB_ACTIONS === "true" &&
+          process.env.VENI_LOCAL_OAUTH === "1") r.headers.set("X-Veni-Local-Proof-Stage", proofStage);
+      return r;
+    };
     try {
       const url = new URL(request.url);
       if (!boundedQuery(url, ["code", "state", "iss", "error", "error_description", "error_uri"])) return failWithClear(400);
@@ -196,18 +207,21 @@ export function createLocalVeniOAuth(config: LocalOAuthConfig, { fetcher = fetch
       const body = new URLSearchParams({ grant_type: "authorization_code", code,
         redirect_uri: CALLBACK, code_verifier: transaction.verifier });
       const credentials = btoa(`${config.clientId}:${config.clientSecret}`);
+      proofStage = "exchange-oauth-code";
       const tokenResponse = await providerRequest("/auth/v1/oauth/token", { method: "POST", headers: {
         Authorization: `Basic ${credentials}`, "Content-Type": "application/x-www-form-urlencoded"
       }, body });
+      proofStage = "parse-oauth-token";
       const received: unknown = await tokenResponse.json();
       if (!received || typeof received !== "object" || Array.isArray(received)) return failWithClear(503);
       const values = received as Record<string, unknown>;
       const token = values.access_token;
       if (typeof token !== "string" || token.length > 8192 || !TOKEN.test(token) ||
           String(values.token_type).toLowerCase() !== "bearer") return failWithClear(503);
-      const verified = await activeSubject(token);
+      const verified = await activeSubject(token, stage => { proofStage = stage; });
       const lifetime = Math.min(MAX_SESSION_SECONDS, verified.expires - now());
       if (lifetime <= 0) return failWithClear(503);
+      proofStage = "seal-local-session";
       const session: Session = { kind: "session", token, subject: verified.subject,
         next: transaction.next, expires: now() + lifetime };
       return redirect("/development/veni-account", [clear, cookie(SESSION, await seal(session, "session"), lifetime)]);
