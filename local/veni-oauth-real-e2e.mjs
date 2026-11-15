@@ -18,6 +18,8 @@ const PROVIDER = "http://127.0.0.1:54321";
 const CALLBACK = `${APP}/auth/veni/callback`;
 const DEV_VARS = join(ROOT, ".dev.vars");
 const ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
+const proofStages = new Set(["validate-callback", "exchange-oauth-code", "parse-oauth-token",
+  "verify-auth-user", "verify-live-rpc", "verify-claims", "seal-local-session"]);
 const require = createRequire(import.meta.url);
 const cli = join(dirname(require.resolve("supabase/package.json")), "dist/supabase.js");
 const flags = { redirect: "manual" };
@@ -30,6 +32,8 @@ let appProcess;
 let assertions = 0;
 let createdDevVars = false;
 let finished = false;
+let proofTrace = "";
+let outputTail = "";
 
 function check(test, label) {
   assert.ok(test, label);
@@ -169,8 +173,18 @@ try {
   ].join("\n"), { flag: "wx", mode: 0o600 });
   createdDevVars = true;
   appProcess = spawn(process.execPath, ["local/veni-oauth-start.mjs"], {
-    cwd: ROOT, detached: true, stdio: "ignore", env: { ...process.env, VENI_LOCAL_OAUTH: "1" }
+    cwd: ROOT, detached: true, stdio: ["ignore", "pipe", "pipe"],
+    env: { ...process.env, VENI_LOCAL_OAUTH: "1" }
   });
+  // Consume but NEVER forward child logs. Extract only fixed categorical proof
+  // stages so transient SSR failures can be classified without log leakage.
+  for (const stream of [appProcess.stdout, appProcess.stderr]) {
+    stream.on("data", chunk => {
+      outputTail = (outputTail + String(chunk)).slice(-16384);
+      const match = outputTail.match(/VENI-LOCAL-PROOF-STAGE:([a-z-]+)/);
+      if (match && proofStages.has(match[1])) proofTrace = match[1];
+    });
+  }
   await waitForApp();
 
   phase = "deny consent and preserve state";
@@ -190,10 +204,9 @@ try {
 
   phase = "Reserve SSR callback and real Auth/RLS verification";
   const callback = await browser(accepted, approved.transaction);
+  if (callback.status !== 303) await delay(100);
   const stage = callback.headers.get("X-Veni-Local-Proof-Stage");
-  const stages = new Set(["validate-callback", "exchange-oauth-code", "parse-oauth-token",
-    "verify-auth-user", "verify-live-rpc", "verify-claims", "seal-local-session"]);
-  check(callback.status === 303, `callback HTTP status ${callback.status}, stage ${stages.has(stage) ? stage : "opaque"} (expected 303)`);
+  check(callback.status === 303, `callback HTTP status ${callback.status}, stage ${proofStages.has(stage) ? stage : proofTrace || "opaque"} (expected 303)`);
   check(redirectUrl(callback, APP).pathname === "/development/veni-account", "Reserve accepts only verified identity");
   const sessionCookie = cookie(callback, "vr_local_oauth_session");
   check(!!sessionCookie, "short-lived HttpOnly connected session");
