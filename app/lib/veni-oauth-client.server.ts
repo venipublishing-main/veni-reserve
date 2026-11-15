@@ -126,7 +126,9 @@ export function createLocalVeniOAuth(config: LocalOAuthConfig, { fetcher = fetch
   }
   async function providerRequest(path: string, init: RequestInit) {
     const response = await fetcher(`${config.providerOrigin}${path}`, { ...init,
-      redirect: "error", signal: AbortSignal.timeout(5000) });
+      // Never follow a provider redirect. Manual mode works in the local Worker
+      // runtime; every 3xx is rejected below alongside other non-2xx statuses.
+      redirect: "manual", signal: AbortSignal.timeout(5000) });
     if (!response.ok) throw new Error("provider rejected");
     return response;
   }
@@ -197,7 +199,8 @@ export function createLocalVeniOAuth(config: LocalOAuthConfig, { fetcher = fetch
         redirect_uri: CALLBACK, code_verifier: transaction.verifier });
       const credentials = btoa(`${config.clientId}:${config.clientSecret}`);
       const tokenResponse = await providerRequest("/auth/v1/oauth/token", { method: "POST", headers: {
-        Authorization: `Basic ${credentials}`, "Content-Type": "application/x-www-form-urlencoded"
+        apikey: config.publishableKey, Authorization: `Basic ${credentials}`,
+        "Content-Type": "application/x-www-form-urlencoded"
       }, body });
       const received: unknown = await tokenResponse.json();
       if (!received || typeof received !== "object" || Array.isArray(received)) return failWithClear(503);
