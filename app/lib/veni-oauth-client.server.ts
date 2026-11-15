@@ -132,8 +132,7 @@ export function createLocalVeniOAuth(config: LocalOAuthConfig, { fetcher = fetch
     if (!response.ok) throw new Error("provider rejected");
     return response;
   }
-  async function activeSubject(token: string, mark: (stage: string) => void = () => {}) {
-    mark("verify-auth-user");
+  async function activeSubject(token: string) {
     const authResponse = await providerRequest("/auth/v1/user", { headers: {
       apikey: config.publishableKey, Authorization: `Bearer ${token}`
     }});
@@ -143,7 +142,6 @@ export function createLocalVeniOAuth(config: LocalOAuthConfig, { fetcher = fetch
     const subject = (user as Record<string, unknown>).id;
 
     // A signed JWT can survive logout: the database RPC checks auth.sessions.
-    mark("verify-live-rpc");
     const liveResponse = await providerRequest("/rest/v1/rpc/current_reserve_user", {
       method: "POST", headers: { apikey: config.publishableKey,
         Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: "{}"
@@ -152,7 +150,6 @@ export function createLocalVeniOAuth(config: LocalOAuthConfig, { fetcher = fetch
     if (liveId !== subject) throw new Error("revoked or unauthorized session");
 
     // Claim values are consumed ONLY after Auth and the RLS RPC validated this JWT.
-    mark("verify-claims");
     const claims = jwtClaimsAfterAuthCheck(token);
     if (claims.sub !== subject || claims.client_id !== config.clientId || !UUID.test(String(claims.session_id)) ||
         claims.role !== "authenticated" || claims.is_anonymous === true ||
@@ -181,17 +178,7 @@ export function createLocalVeniOAuth(config: LocalOAuthConfig, { fetcher = fetch
   async function callback(request: Request) {
     if (!allowed(request) || new URL(request.url).pathname !== "/auth/veni/callback") return fail(404);
     const clear = cookie(TX, "", 0);
-    let proofStage = "validate-callback";
-    const failWithClear = (status: number) => {
-      const r = fail(status);
-      r.headers.append("Set-Cookie", clear);
-      // Temporary static-stage trace for a disposable, local-only CI receiving client.
-      if (status === 503) console.error(`VENI-LOCAL-PROOF-STAGE:${proofStage}`);
-      // CI-only, loopback-only categorical trace; never include secrets or raw provider errors.
-      if (typeof process !== "undefined" && process.env.GITHUB_ACTIONS === "true" &&
-          process.env.VENI_LOCAL_OAUTH === "1") r.headers.set("X-Veni-Local-Proof-Stage", proofStage);
-      return r;
-    };
+    const failWithClear = (status: number) => { const r = fail(status); r.headers.append("Set-Cookie", clear); return r; };
     try {
       const url = new URL(request.url);
       if (!boundedQuery(url, ["code", "state", "iss", "error", "error_description", "error_uri"])) return failWithClear(400);
@@ -211,55 +198,23 @@ export function createLocalVeniOAuth(config: LocalOAuthConfig, { fetcher = fetch
       const body = new URLSearchParams({ grant_type: "authorization_code", code,
         redirect_uri: CALLBACK, code_verifier: transaction.verifier });
       const credentials = btoa(`${config.clientId}:${config.clientSecret}`);
-      proofStage = "exchange-oauth-code";
-      const tokenResponse = await fetcher(`${AUTH}/oauth/token`, { method: "POST", headers: {
+      const tokenResponse = await providerRequest("/auth/v1/oauth/token", { method: "POST", headers: {
         apikey: config.publishableKey, Authorization: `Basic ${credentials}`,
         "Content-Type": "application/x-www-form-urlencoded"
-      }, body, redirect: "manual", signal: AbortSignal.timeout(5000) });
-      if (!tokenResponse.ok) {
-        let code = "unclassified";
-        try {
-          const errorBody: unknown = await tokenResponse.json();
-          const kind = errorBody && typeof errorBody === "object" && !Array.isArray(errorBody) ?
-            (errorBody as Record<string, unknown>).error : "";
-          if (typeof kind === "string" && ["invalid_client", "invalid_grant", "invalid_request",
-              "unauthorized_client", "unsupported_grant_type", "invalid_scope", "server_error"].includes(kind))
-            code = kind.replaceAll("_", "-");
-        } catch { /* Intentionally ignore untrusted provider bodies. */ }
-        const status = [301, 302, 303, 307, 308, 400, 401, 403, 404, 429, 500, 502, 503].includes(tokenResponse.status) ?
-          tokenResponse.status : 0;
-        proofStage = `token-http-${status}-${code}`;
-        return failWithClear(503);
-      }
-      proofStage = "parse-oauth-token";
+      }, body });
       const received: unknown = await tokenResponse.json();
       if (!received || typeof received !== "object" || Array.isArray(received)) return failWithClear(503);
       const values = received as Record<string, unknown>;
       const token = values.access_token;
       if (typeof token !== "string" || token.length > 8192 || !TOKEN.test(token) ||
           String(values.token_type).toLowerCase() !== "bearer") return failWithClear(503);
-      const verified = await activeSubject(token, stage => { proofStage = stage; });
+      const verified = await activeSubject(token);
       const lifetime = Math.min(MAX_SESSION_SECONDS, verified.expires - now());
       if (lifetime <= 0) return failWithClear(503);
-      proofStage = "seal-local-session";
       const session: Session = { kind: "session", token, subject: verified.subject,
         next: transaction.next, expires: now() + lifetime };
       return redirect("/development/veni-account", [clear, cookie(SESSION, await seal(session, "session"), lifetime)]);
-    } catch (error) {
-      if (proofStage === "exchange-oauth-code") {
-        const kind = error instanceof TypeError ? "type-error" :
-          error instanceof Error && error.name === "TimeoutError" ? "timeout-error" :
-          error instanceof Error && error.name === "AbortError" ? "abort-error" : "other";
-        const cause = error && typeof error === "object" && "cause" in error &&
-          error.cause && typeof error.cause === "object" && "code" in error.cause ?
-          String(error.cause.code) : "";
-        const reason = cause === "ECONNREFUSED" ? "refused" :
-          cause === "ENOTFOUND" ? "dns" :
-          ["ETIMEDOUT", "UND_ERR_CONNECT_TIMEOUT"].includes(cause) ? "timeout" : "other";
-        proofStage = `token-fetch-${kind}-${reason}`;
-      }
-      return failWithClear(503);
-    }
+    } catch { return failWithClear(503); }
   }
 
   async function status(request: Request) {
