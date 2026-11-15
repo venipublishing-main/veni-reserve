@@ -20,7 +20,7 @@ const DEV_VARS = join(ROOT, ".dev.vars");
 const ID = /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/i;
 const require = createRequire(import.meta.url);
 const cli = join(dirname(require.resolve("supabase/package.json")), "dist/supabase.js");
-const flags = { redirect: "manual", signal: globalThis.AbortSignal.timeout(8000) };
+const flags = { redirect: "manual" };
 let phase = "guard";
 let apiKey = "";
 let serviceKey = "";
@@ -29,6 +29,7 @@ let clientId = "";
 let appProcess;
 let assertions = 0;
 let createdDevVars = false;
+let finished = false;
 
 function check(test, label) {
   assert.ok(test, label);
@@ -41,6 +42,7 @@ function localUrl(path) {
 }
 async function provider(path, init = {}) {
   return globalThis.fetch(localUrl(path), { ...flags, ...init,
+    signal: globalThis.AbortSignal.timeout(8000),
     headers: { apikey: apiKey, ...init.headers } });
 }
 async function admin(path, method, body) {
@@ -63,7 +65,8 @@ function redirectUrl(response, origin) {
 async function browser(url, cookieHeader = "") {
   const resolved = new URL(url, APP);
   check(resolved.origin === APP, "browser request remains local to Reserve");
-  return globalThis.fetch(resolved, { ...flags, headers: cookieHeader ? { Cookie: cookieHeader } : {} });
+  return globalThis.fetch(resolved, { ...flags, signal: globalThis.AbortSignal.timeout(8000),
+    headers: cookieHeader ? { Cookie: cookieHeader } : {} });
 }
 async function waitForApp() {
   for (let i = 0; i < 60; i++) {
@@ -208,7 +211,7 @@ try {
   const revokedHTML = await afterRevoke.text();
   check(afterRevoke.status === 200 && revokedHTML.includes("No verified local Veni Account session"),
     "deleted synthetic Auth user cannot reuse Reserve status cookie");
-  console.log(`Real disposable OAuth2/PKCE + Reserve SSR: PASS (${assertions} bounded assertions; no hosted access)`);
+  finished = true;
 } catch {
   // No stack traces, URLs, request objects or secrets in CI logs.
   console.error(`Real disposable OAuth2/PKCE + Reserve SSR: FAIL at ${phase}; details withheld.`);
@@ -228,4 +231,6 @@ try {
   if (clientId && serviceKey) {
     try { await admin(`/auth/v1/admin/oauth/clients/${clientId}`, "DELETE"); } catch { process.exitCode = 1; }
   }
+  if (finished && !process.exitCode)
+    console.log(`Real disposable OAuth2/PKCE + Reserve SSR: PASS (${assertions} bounded assertions; no hosted access)`);
 }
