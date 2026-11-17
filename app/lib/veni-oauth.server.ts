@@ -120,11 +120,14 @@ export function createReserveOAuth(config: ReserveOAuthConfig, { fetcher = fetch
     const u = new URL(request.url);
     return u.origin === config.appOrigin && request.method === "GET";
   }
-  async function providerRequest(path: string, init: RequestInit) {
-    const response = await fetcher(`${config.providerOrigin}${path}`, { ...init,
+  function fetchProvider(path: string, init: RequestInit) {
+    return fetcher(`${config.providerOrigin}${path}`, { ...init,
       // Never follow a provider redirect. Manual mode works in the local Worker
       // runtime; every 3xx is rejected below alongside other non-2xx statuses.
       redirect: "manual", signal: AbortSignal.timeout(5000) });
+  }
+  async function providerRequest(path: string, init: RequestInit) {
+    const response = await fetchProvider(path, init);
     if (!response.ok) throw new Error("provider rejected");
     return response;
   }
@@ -215,11 +218,18 @@ export function createReserveOAuth(config: ReserveOAuthConfig, { fetcher = fetch
     } catch { return failWithClear(503); }
   }
 
-  async function currentSession(request: Request) {
+  async function sessionFromCookie(request: Request) {
     if (new URL(request.url).origin !== config.appOrigin) return null;
     try {
       const session = await unseal(readCookie(request, SESSION), "session");
       if (session.kind !== "session" || session.expires <= now()) return null;
+      return session;
+    } catch { return null; }
+  }
+  async function currentSession(request: Request) {
+    const session = await sessionFromCookie(request);
+    if (!session) return null;
+    try {
       const verified = await activeSubject(session.token);
       if (verified.subject !== session.subject) return null;
       return { id: verified.subject, token: session.token };
@@ -228,14 +238,23 @@ export function createReserveOAuth(config: ReserveOAuthConfig, { fetcher = fetch
   async function signOut(request: Request) {
     if (new URL(request.url).origin !== config.appOrigin || request.method !== "POST" ||
         request.headers.get("origin") !== config.appOrigin) return fail(403);
-    const session = await currentSession(request);
+    // The sealed session identifies the token to revoke. An unavailable
+    // identity lookup must never be mistaken for successful revocation.
+    const session = await sessionFromCookie(request);
     if (session) {
       try {
-        await providerRequest("/auth/v1/logout?scope=local", { method: "POST",
+        const response = await fetchProvider("/auth/v1/logout?scope=local", { method: "POST",
           headers: { apikey: config.publishableKey, Authorization: "Bearer " + session.token } });
+        if (!response.ok) {
+          if (response.status !== 401 && response.status !== 403) return fail(503);
+          const { error_code } = await response.json() as { error_code?: string };
+          if (error_code !== "session_not_found" && error_code !== "user_not_found" &&
+              error_code !== "session_expired") return fail(503);
+        }
       } catch { return fail(503); }
     }
-    return redirect("/", [cookie(SESSION, "", 0), cookie(TX, "", 0)]);
+    const receiptName = (secure ? "__Host-" : "") + "vr_setup_request";
+    return redirect("/", [cookie(SESSION, "", 0), cookie(TX, "", 0), cookie(receiptName, "", 0)]);
   }
   return { begin, callback, currentSession, signOut };
 }

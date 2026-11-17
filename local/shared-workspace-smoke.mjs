@@ -108,7 +108,10 @@ try {
     assert.equal((await call(a, prefix + name)).status, 200, name);
     assert.equal((await call(b, prefix + name)).status, 404, name + ' tenant boundary');
   }
-  assert.equal((await call(a, 'logout', 'POST')).status, 303);
+  const logout = await call(a, 'logout', 'POST');
+  assert.equal(logout.status, 303);
+  assert.ok(logout.headers.getSetCookie().some(value =>
+    value.startsWith('vr_setup_request=;') && value.includes('Max-Age=0')));
   assert.equal((await call(a, 'session')).status, 401);
   globalThis.console.log('PASS shared Worker OAuth, verified sessions, tenant bootstrap/retry, settings and all private catalogues');
 } finally {
