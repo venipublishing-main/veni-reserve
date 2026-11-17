@@ -69,7 +69,8 @@ export async function businessSettings(request: Request, target: string, env: {
     const input = save ? settingsInput(await readInput(request)) : null;
     if (save && !input) return failure("invalid_input",422);
     const base = new URL(env.SUPABASE_URL ?? "");
-    const local = env.VENI_ENV === "dev" && base.origin === "http://127.0.0.1:54321";
+    const local = env.VENI_ENV === "dev" && (base.origin === "http://127.0.0.1:54321" ||
+      (env.VENI_ACCOUNT_MODE === "shared" && base.origin === "http://127.0.0.1:56321"));
     if ((!local && base.protocol !== "https:") || base.username || base.password || base.pathname !== "/" || base.search || base.hash ||
       !env.SUPABASE_PUBLISHABLE_KEY || !/^sb_publishable_[A-Za-z0-9_-]+$/.test(env.SUPABASE_PUBLISHABLE_KEY)) return failure("dependency_unavailable",503);
     timer = setTimeout(() => controller.abort(),5000);

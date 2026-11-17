@@ -58,17 +58,26 @@ under AR-030. Future deployments require separate review and authorization.
 The explicit `stg` environment is selected at Vite build time. Its original four
 public vars are `VENI_PRODUCT`, `VENI_ENV`, `SUPABASE_URL` and
 `SUPABASE_PUBLISHABLE_KEY`. The originally deployed Worker targets
-`opjgaepryqwmsohtajja.supabase.co`. The subsequent shared-account cutover
-configuration targets primary `droslqfcazwkwvqlbtsq.supabase.co` and sets
-`VENI_ACCOUNT_MODE=shared` to use the namespaced `public.reserve_*` API.
-This config change does not redeploy the existing Worker; its original
-environment remains live until a separate verified release.
-No elevated Supabase key is configured. DEV remains local-first without hosted
-Supabase bindings. `/health` remains process liveness; `/ready` checks Supabase
-Auth health with a bounded server-side request. No production resources, custom
-domain or DNS configuration are provisioned.
-See the [staging deployment procedure](engineering/README.md#m0-staging-deployment) and
-[engineering environment conventions](engineering/README.md#environment-conventions).
+`opjgaepryqwmsohtajja.supabase.co`. The shared staging build targets
+`droslqfcazwkwvqlbtsq.supabase.co` with its public key and the namespaced
+`public.reserve_*` RPCs. The Worker uses central Veni Account authorization
+with PKCE and a registered confidential client. Set `VENI_OAUTH_CLIENT_ID`,
+`VENI_OAUTH_CLIENT_SECRET` and `VENI_OAUTH_COOKIE_KEY` as staging Worker secrets.
+The cookie key is 32 random bytes encoded as base64url.
+
+The registered callback is
+`https://vf-reserve-stg.veni-reserve.workers.dev/auth/veni/callback`.
+The Website consent allowlist must contain the same public client ID, exact
+callback and `email` scope. After a successful callback the Worker stores an
+encrypted host-only cookie for up to five minutes. It revalidates the user
+and database session on each private request. Tenant operations use the
+user's access token. Reauthorization starts from `/login`.
+
+Run `node local/shared-workspace-smoke.mjs <isolated-stack-directory>` from
+this repository after applying the Website integration fixture and nine
+Reserve migrations to the disposable stack on ports 56321 and 56322.
+The test creates its own local client and identities. Use a clean worktree
+with port 5193 free and no existing `.dev.vars`.
 
 Under Architecture Reconciliation AR-007, production infrastructure is provisioned
 when the M0–M14 implementation and launch-readiness gates justify production use.

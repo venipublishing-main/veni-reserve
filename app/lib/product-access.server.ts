@@ -2,8 +2,7 @@ import { accountEntry, safeReturnPath } from "../features/site/navigation";
 
 export const privateHeaders = { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow" };
 
-/** Intentionally no provider adapter yet. Cookies, bearer tokens, emails and client
- * tenant/role claims cannot unlock these routes. Replace only after identity review. */
+/** Entry response when a protected route has no verified Reserve session. */
 export async function requireProductSession(request: Request) {
   if (!["GET", "HEAD"].includes(request.method)) return rejectAccountWrite(request);
   const next = safeReturnPath(new URL(request.url).pathname);

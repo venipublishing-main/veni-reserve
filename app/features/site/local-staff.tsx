@@ -10,17 +10,17 @@ import type { SavedLocation,LocationList } from "../../lib/locations";
 const control="block w-full rounded border border-slate-400 bg-white px-3 py-2";
 const button="rounded border border-slate-500 bg-white px-4 py-2 disabled:opacity-50";
 const errors:Record<string,string>={
-  unauthorized:"Your local session has expired.",
+  unauthorized:"Your session has expired.",
   tenant_unavailable:"Your Staff/Services permissions changed or this business is inaccessible.",
   staff_unavailable:"This Staff record is unavailable or archived.",
   relation_unavailable:"An eligibility endpoint is unavailable in this business.",
   relation_exists:"This relationship already exists. Select it to enable or update it.",
   revision_conflict:"Another operator saved a newer revision. Reload and review before saving.",
   invalid_input:"Check Staff details or the selected relationship and override values.",
-  dependency_unavailable:"Local database unavailable; your unsaved inputs are retained.",
+  dependency_unavailable:"Database unavailable; your unsaved inputs are retained.",
 };
-type Props={tenantId:string;defaultCurrency:string};
-export function LocalStaff({tenantId,defaultCurrency}:Props){
+type Props={tenantId:string;defaultCurrency:string;apiBase:string};
+export function LocalStaff({tenantId,defaultCurrency,apiBase}:Props){
   const [staff,setStaff]=useState<SavedStaff[]>([]),[services,setServices]=useState<SavedService[]>([]);
   const [locations,setLocations]=useState<SavedLocation[]>([]),[links,setLinks]=useState<SavedEligibility[]>([]);
   const [chosenStaff,setChosenStaff]=useState<string|null>(null),[staffRevision,setStaffRevision]=useState(0);
@@ -30,15 +30,15 @@ export function LocalStaff({tenantId,defaultCurrency}:Props){
   const [priceText,setPriceText]=useState("");
   const [ready,setReady]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState("");
   async function api<T>(path:string,method="GET",body?:unknown):Promise<T>{
-    const response=await fetch(`/development/local-api/tenants/${tenantId}/${path}`,{
+    const response=await fetch(`${apiBase}/tenants/${tenantId}/${path}`,{
       method,headers:{"Content-Type":"application/json"},
       body:body===undefined?undefined:JSON.stringify(body),
     });
     let payload:unknown;
-    try{payload=await response.json();}catch{throw new Error("Local Staff provider unavailable.");}
+    try{payload=await response.json();}catch{throw new Error("Staff provider unavailable.");}
     if(!response.ok){
       const code=payload&&typeof payload==="object"&&"error" in payload?String(payload.error):"";
-      throw new Error(errors[code]??"Local Staff request rejected. Unsaved input is retained.");
+      throw new Error(errors[code]??"Staff request rejected. Unsaved input is retained.");
     }
     return payload as T;
   }
@@ -60,7 +60,7 @@ export function LocalStaff({tenantId,defaultCurrency}:Props){
       setStaff(a.staff);setServices(b.services);setLocations(c.locations);
       setLinks(d.eligibility);setReady(true);
     }).catch(()=>{if(!cancelled){setReady(true);
-      setMessage("Cannot load Staff and eligibility. Check the local provider and permissions.");}});
+      setMessage("Cannot load Staff and eligibility. Check the provider and permissions.");}});
     return ()=>{cancelled=true;};
     // Parent remounts for each selected Tenant.
   },[tenantId]);
@@ -86,7 +86,7 @@ export function LocalStaff({tenantId,defaultCurrency}:Props){
       if(!saved)throw new Error("Staff save could not be read back.");
       setStaff(result.staff);selectStaff(saved);
       setMessage(saved.status==="ARCHIVED"?"Archived without deleting the Staff identity.":
-        `Staff saved locally, revision ${saved.revision}. No accounts or invitations created.`);
+        `Staff saved, revision ${saved.revision}. No accounts or invitations created.`);
     }catch(error){setMessage(error instanceof Error?error.message:"Staff save failed.");}
     finally{setBusy(false);}
   }
@@ -120,7 +120,7 @@ export function LocalStaff({tenantId,defaultCurrency}:Props){
       const saved=result.eligibility.find(x=>x.eligibility_id===result.eligibility_id);
       if(!saved)throw new Error("Eligibility save could not be read back.");
       setLinks(result.eligibility);selectLink(saved);
-      setMessage(`Eligibility ${saved.enabled?"enabled":"disabled"} locally (revision ${saved.revision}). No booking has been created.`);
+      setMessage(`Eligibility ${saved.enabled?"enabled":"disabled"} (revision ${saved.revision}). No booking has been created.`);
     }catch(error){setMessage(error instanceof Error?error.message:"Eligibility save failed.");}
     finally{setBusy(false);}
   }
@@ -151,7 +151,7 @@ export function LocalStaff({tenantId,defaultCurrency}:Props){
     <div className="flex flex-wrap gap-2">
       <button type="button" className={button} disabled={busy||!ready} onClick={newStaff}>Add Staff Member</button>
       <button type="button" className={button} disabled={busy||!ready}
-        onClick={()=>void reload().then(()=>setMessage("Staff, Services and eligibility reloaded.")).catch(()=>setMessage("Local reload failed."))}>
+        onClick={()=>void reload().then(()=>setMessage("Staff, Services and eligibility reloaded.")).catch(()=>setMessage("Reload failed."))}>
         Reload everything</button>
     </div>
     <div className="flex flex-wrap gap-2" aria-label="Saved Staff">
@@ -205,7 +205,7 @@ export function LocalStaff({tenantId,defaultCurrency}:Props){
         May receive automatic “No Preference” assignments, even if hidden
       </label>
       <div className="flex flex-wrap gap-2">
-        <button className={button} disabled={staffLocked}>Save Staff locally</button>
+        <button className={button} disabled={staffLocked}>Save Staff</button>
         {chosenStaff&&draft.status!=="ARCHIVED"&&<button type="button" className={button} disabled={busy}
           onClick={()=>{const current=staff.find(s=>s.staff_id===chosenStaff);
             if(current&&window.confirm("Archive this Staff Member? Their identity and relationship history stay intact."))
@@ -265,7 +265,7 @@ export function LocalStaff({tenantId,defaultCurrency}:Props){
           </label>
         </div>}
         <div className="flex flex-wrap gap-2">
-          <button className={button} disabled={linkLocked}>Save relationship locally</button>
+          <button className={button} disabled={linkLocked}>Save relationship</button>
           {chosenLink&&<button className={button} type="button" disabled={busy}
             onClick={()=>{const current=links.find(x=>x.eligibility_id===chosenLink);
               if(current)selectLink(current);}}>Discard changes</button>}

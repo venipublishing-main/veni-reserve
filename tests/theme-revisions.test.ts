@@ -36,7 +36,7 @@ describe("private Theme Revision V1 boundaries", () => {
     expect(themeVersion({ theme_id: uuidA, revision: 1, revision_id: uuidB, created_at: "2026-11-14T00:00:00Z", tokens: DEFAULT_THEME_TOKENS })).toBe(true);
   });
   it("does not create a public Theme route or silently expose publish/asset persistence", () => {
-    const routes = read("app/routes.ts"), harness = read("local/tenant-harness.ts"), migration = read("supabase/migrations/20261114110626_theme_revisions_private_drafts.sql");
+    const routes = read("app/routes.ts"), harness = read("app/lib/tenant-workspace.server.ts"), migration = read("supabase/migrations/20261114110626_theme_revisions_private_drafts.sql");
     expect(routes).not.toMatch(/route\([^\n]*themes/);
     expect(harness).toContain('create_tenant_theme');
     expect(migration).toContain("alter table private.published_theme_assignments enable row level security");

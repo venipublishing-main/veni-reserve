@@ -9,9 +9,8 @@ const button = "rounded border border-slate-500 bg-white px-4 py-2 disabled:opac
 const input = "block w-full rounded border border-slate-400 bg-white p-2";
 type ThemeVersion = { theme_id: string; revision: number; revision_id: string; tokens: ThemeTokens; created_at: string };
 
-/** The only transport is the loopback-only, cookie-bound synthetic test harness. */
-async function localThemeApi<T>(tenantId: string, path: string, method = "GET", body?: unknown): Promise<T> {
-  const response = await fetch(`/development/local-api/tenants/${tenantId}/themes${path}`, {
+async function themeApi<T>(apiBase: string, tenantId: string, path: string, method = "GET", body?: unknown): Promise<T> {
+  const response = await fetch(`${apiBase}/tenants/${tenantId}/themes${path}`, {
     method, headers: { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -21,7 +20,7 @@ async function localThemeApi<T>(tenantId: string, path: string, method = "GET", 
     throw new Error(code === "revision_conflict" ? "Another edit was saved. Your unsaved changes remain; reload the saved revision before trying again."
       : code === "duplicate_name" ? "A Theme with this name already exists for this business."
       : code === "invalid_input" ? "Choose an approved name, six-digit colours and supported typography."
-      : "The local Theme request was rejected. Check your membership/session and try again.");
+      : "The Theme request was rejected. Check your membership/session and try again.");
   }
   return data as T;
 }
@@ -36,7 +35,7 @@ function ThemeSample({ tokens, name }: { tokens: ThemeTokens; name: string }) {
   </section>;
 }
 
-export function LocalThemeStudio({ tenantId }: { tenantId: string }) {
+export function LocalThemeStudio({ tenantId, apiBase }: { tenantId: string; apiBase: string }) {
   const [list, setList] = useState<ThemeSummary[]>([]), [saved, setSaved] = useState<ThemeRecord | null>(null);
   const [name, setName] = useState("Standard"), [tokens, setTokens] = useState<ThemeTokens>({ ...DEFAULT_THEME_TOKENS });
   const [historic, setHistoric] = useState<ThemeVersion | null>(null);
@@ -44,12 +43,12 @@ export function LocalThemeStudio({ tenantId }: { tenantId: string }) {
   const requestId = useRef(0);
 
   async function refreshList() {
-    const result = await localThemeApi<{ themes: ThemeSummary[] }>(tenantId, "");
+    const result = await themeApi<{ themes: ThemeSummary[] }>(apiBase, tenantId, "");
     setList(result.themes);
   }
   useEffect(() => {
     const current = ++requestId.current;
-    void localThemeApi<{ themes: ThemeSummary[] }>(tenantId, "").then(result => {
+    void themeApi<{ themes: ThemeSummary[] }>(apiBase, tenantId, "").then(result => {
       if (requestId.current === current) setList(result.themes);
     }).catch(() => { if (requestId.current === current) setStatus("Could not load private Themes. Please sign in again if your session expired."); })
       .finally(() => { if (requestId.current === current) setLoading(false); });
@@ -63,7 +62,7 @@ export function LocalThemeStudio({ tenantId }: { tenantId: string }) {
     finally { setBusy(false); }
   }
   async function openTheme(id: string) {
-    const value = await localThemeApi<ThemeRecord>(tenantId, `/${id}`);
+    const value = await themeApi<ThemeRecord>(apiBase, tenantId, `/${id}`);
     setSaved(value); setName(value.name); setTokens(value.tokens); setHistoric(null);
     setStatus(`Loaded private Theme revision ${value.current_revision}.`);
   }
@@ -75,8 +74,8 @@ export function LocalThemeStudio({ tenantId }: { tenantId: string }) {
   const unsaved = !saved || JSON.stringify(valid) !== JSON.stringify(saved.tokens);
 
   return <section className="my-6 space-y-4 rounded-2xl border border-emerald-500 bg-emerald-50/40 p-5" aria-label="Persistent private Theme Studio">
-    <h2 className="text-2xl font-semibold">Private Theme Studio — local persistence</h2>
-    <p className="rounded border border-amber-400 bg-amber-50 p-3">Synthetic local business only. Saving creates an immutable Theme Revision in PostgreSQL. Drafts remain tenant-private; no logo storage, public publishing or booking activation exists here. A database reset destroys the local records.</p>
+    <h2 className="text-2xl font-semibold">Private Theme Studio</h2>
+    <p className="rounded border border-amber-400 bg-amber-50 p-3">Each save creates a private revision for this business. You can reopen earlier revisions to review their colours and typography.</p>
     <div className="space-y-2"><h3 className="font-semibold">Saved Themes</h3>
       <div className="flex flex-wrap gap-2">{list.map(item => <button key={item.theme_id} className={button} disabled={busy}
         aria-pressed={saved?.theme_id === item.theme_id} onClick={() => void perform(() => openTheme(item.theme_id))}>
@@ -89,8 +88,8 @@ export function LocalThemeStudio({ tenantId }: { tenantId: string }) {
     <form onSubmit={event => { event.preventDefault(); void perform(async () => {
       if (!valid) throw new Error("Choose safe colour values and typography before saving.");
       const result = saved
-        ? await localThemeApi<ThemeRecord>(tenantId, `/${saved.theme_id}`, "PUT", { expected_revision: saved.current_revision, tokens: valid })
-        : await localThemeApi<ThemeRecord>(tenantId, "", "POST", { name, tokens: valid });
+        ? await themeApi<ThemeRecord>(apiBase, tenantId, `/${saved.theme_id}`, "PUT", { expected_revision: saved.current_revision, tokens: valid })
+        : await themeApi<ThemeRecord>(apiBase, tenantId, "", "POST", { name, tokens: valid });
       setSaved(result); setName(result.name); setTokens(result.tokens); setHistoric(null);
       await refreshList(); setStatus(`Saved immutable private Theme revision ${result.current_revision}.`);
     }); }} className="grid gap-5 lg:grid-cols-2">
@@ -113,7 +112,7 @@ export function LocalThemeStudio({ tenantId }: { tenantId: string }) {
     </form>
     {saved && <section className="space-y-2"><h3 className="font-semibold">Immutable revision history</h3>
       <div className="flex flex-wrap gap-2">{saved.history.map(entry => <button className={button} key={entry.revision_id} disabled={busy}
-        onClick={() => void perform(async () => { const value = await localThemeApi<ThemeVersion>(tenantId, `/${saved.theme_id}/revisions/${entry.revision}`);
+        onClick={() => void perform(async () => { const value = await themeApi<ThemeVersion>(apiBase, tenantId, `/${saved.theme_id}/revisions/${entry.revision}`);
           setHistoric(value); setStatus(`Viewing historical revision ${value.revision} privately. The saved draft is unchanged.`); })}>
         Preview revision {entry.revision}</button>)}</div>
       {historic && <div className="grid gap-4 md:grid-cols-2"><ThemeSample tokens={historic.tokens} name={`${saved.name} — historical #${historic.revision}`} />

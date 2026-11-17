@@ -7,7 +7,7 @@ const button = "rounded border border-slate-500 bg-white px-4 py-2 disabled:opac
 const kinds = ["PHYSICAL","VIRTUAL","MOBILE","OTHER"] as const;
 const errors: Record<string,string> = {
   tenant_unavailable: "Your business access has changed; sign in again.",
-  unauthorized: "Your local sign-in has expired. Sign in again.",
+  unauthorized: "Your sign-in has expired. Sign in again.",
   invalid_input: "Check the Location name, timezone and other fields.",
   duplicate_name: "That Location name is already in use.",
   revision_conflict: "Someone saved this Location since you opened it. Reload it before continuing.",
@@ -19,7 +19,7 @@ function editableFields(saved: SavedLocation): LocationAttributes {
     sort_order:saved.sort_order,status:saved.status };
 }
 
-export function LocalLocations({ tenantId }: { tenantId: string }) {
+export function LocalLocations({ tenantId, apiBase }: { tenantId: string; apiBase: string }) {
   const [items,setItems] = useState<SavedLocation[]>([]);
   const [chosen,setChosen] = useState<string | null>(null);
   const [draft,setDraft] = useState<LocationAttributes>({ ...blankLocation });
@@ -27,15 +27,15 @@ export function LocalLocations({ tenantId }: { tenantId: string }) {
   const [busy,setBusy] = useState(false), [ready,setReady] = useState(false);
   const [message,setMessage] = useState("");
   async function api<T>(method = "GET", locationId?: string, body?: unknown): Promise<T> {
-    const response = await fetch("/development/local-api/tenants/" + tenantId + "/locations" +
+    const response = await fetch(apiBase + "/tenants/" + tenantId + "/locations" +
       (locationId ? "/" + locationId : ""), {
       method,headers:{"Content-Type":"application/json"},body:body === undefined ? undefined : JSON.stringify(body),
     });
     let value: unknown;
-    try { value = await response.json(); } catch { throw new Error("Local Location storage is unavailable."); }
+    try { value = await response.json(); } catch { throw new Error("Location storage is unavailable."); }
     if (!response.ok) {
       const code = value && typeof value === "object" && "error" in value ? String(value.error) : "";
-      throw new Error(errors[code] ?? "Local Location operation was rejected. Your changes remain here.");
+      throw new Error(errors[code] ?? "Location operation was rejected. Your changes remain here.");
     }
     return value as T;
   }
@@ -50,7 +50,7 @@ export function LocalLocations({ tenantId }: { tenantId: string }) {
   useEffect(() => {
     let ignore = false;
     void api<LocationList>().then(result => { if (!ignore) { setItems(result.locations);setReady(true); } })
-      .catch(() => { if (!ignore) { setReady(true);setMessage("Could not load saved Locations. Local provider may be offline."); } });
+      .catch(() => { if (!ignore) { setReady(true);setMessage("Could not load saved Locations. Provider may be offline."); } });
     return () => { ignore = true; };
     // Tenant switch remounts via key; this is the initial read.
   },[tenantId]);
@@ -73,7 +73,7 @@ export function LocalLocations({ tenantId }: { tenantId: string }) {
       setItems(result.locations);setChosen(saved.location_id);setRevision(saved.revision);setDraft(editableFields(saved));
       setMessage(saved.status === "ARCHIVED"
         ? "Location archived. Its identity is retained for historical bookings."
-        : "Location saved to local PostgreSQL (revision " + saved.revision + ").");
+        : "Location saved to the database (revision " + saved.revision + ").");
     } catch(e) {setMessage(e instanceof Error ? e.message : "Location save failed.");}
     finally {setBusy(false);}
   }
@@ -83,7 +83,7 @@ export function LocalLocations({ tenantId }: { tenantId: string }) {
     <div className="flex flex-wrap gap-2">
       <button className={button} type="button" disabled={busy || !ready} onClick={startNew}>Add Location</button>
       <button className={button} type="button" disabled={busy || !ready}
-        onClick={() => void reload().then(() => setMessage("Locations reloaded.")).catch(() => setMessage("Local provider unavailable."))}>Reload saved Locations</button>
+        onClick={() => void reload().then(() => setMessage("Locations reloaded.")).catch(() => setMessage("Provider unavailable."))}>Reload saved Locations</button>
     </div>
     <div className="flex flex-wrap gap-2" aria-label="Saved Locations">
       {items.map(item => <button key={item.location_id} type="button" className={button}
@@ -138,7 +138,7 @@ export function LocalLocations({ tenantId }: { tenantId: string }) {
         </select>
       </label>
       <div className="flex flex-wrap gap-2">
-        <button className={button} disabled={busy || draft.status === "ARCHIVED"}>Save Location locally</button>
+        <button className={button} disabled={busy || draft.status === "ARCHIVED"}>Save Location</button>
         {chosen && draft.status !== "ARCHIVED" && <button className={button} type="button" disabled={busy}
           onClick={() => {
             const current = items.find(v=>v.location_id===chosen);

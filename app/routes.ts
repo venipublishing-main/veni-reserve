@@ -7,7 +7,10 @@ export default [
   route("signup", "routes/signup.tsx"),
   route("login", "routes/login.tsx"),
   ...(!preview ? [
-    route("app/*", "routes/app-gate.ts"),
+    route("app/*", "routes/app-gate.tsx"),
+    route("auth/veni/start", "routes/reserve-oauth-start.ts"),
+    route("auth/veni/callback", "routes/reserve-oauth-callback.ts"),
+    route("api/workspace/*", "routes/workspace-api.ts"),
     route("auth/*", "routes/auth-gate.ts"),
     route("book/:tenant_slug", "routes/booking-gate.tsx"),
     route("development/setup", "routes/setup-review.tsx"),

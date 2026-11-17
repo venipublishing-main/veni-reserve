@@ -6,15 +6,15 @@ import type { SavedService,ServiceAttributes,ServiceList,ServiceSaveResult } fro
 const control="block w-full rounded border border-slate-400 bg-white px-3 py-2";
 const button="rounded border border-slate-500 bg-white px-4 py-2 disabled:opacity-50";
 const errors: Record<string,string>={
-  unauthorized:"Your local sign-in expired. Please sign in again.",
+  unauthorized:"Your sign-in expired. Please sign in again.",
   tenant_unavailable:"Your permissions changed; reopen an authorised business.",
   service_unavailable:"This Service was archived or is no longer editable.",
   revision_conflict:"Another operator changed this Service. Reload it before saving.",
   invalid_input:"Check the Service name, duration, price, currency and booking rules.",
-  dependency_unavailable:"The local Service database is unavailable; your edits remain here.",
+  dependency_unavailable:"The Service database is unavailable; your edits remain here.",
 };
 
-export function LocalServices({tenantId,defaultCurrency}:{tenantId:string;defaultCurrency:string}){
+export function LocalServices({tenantId,defaultCurrency,apiBase}:{tenantId:string;defaultCurrency:string;apiBase:string}){
   const [items,setItems]=useState<SavedService[]>([]),[chosen,setChosen]=useState<string|null>(null);
   const [draft,setDraft]=useState<ServiceAttributes>({...blankService});
   const [priceText,setPriceText]=useState(""),[revision,setRevision]=useState(0);
@@ -22,13 +22,13 @@ export function LocalServices({tenantId,defaultCurrency}:{tenantId:string;defaul
   const currency=draft.currency_override??defaultCurrency;
   const digits=currencyDigits(currency);
   async function api<T>(method="GET",serviceId?:string,body?:unknown):Promise<T>{
-    const response=await fetch(`/development/local-api/tenants/${tenantId}/services`+
+    const response=await fetch(`${apiBase}/tenants/${tenantId}/services`+
       (serviceId?`/${serviceId}`:""),{
       method,headers:{"Content-Type":"application/json"},
       body:body===undefined?undefined:JSON.stringify(body),
     });
     let payload:unknown;
-    try{payload=await response.json();}catch{throw new Error("Local Service storage unavailable.");}
+    try{payload=await response.json();}catch{throw new Error("Service storage unavailable.");}
     if(!response.ok){
       const code=payload&&typeof payload==="object"&&"error" in payload?String(payload.error):"";
       throw new Error(errors[code]??"Service request rejected. Your unsaved input is retained.");
@@ -52,7 +52,7 @@ export function LocalServices({tenantId,defaultCurrency}:{tenantId:string;defaul
   useEffect(()=>{
     let ignore=false;
     void api<ServiceList>().then(list=>{if(!ignore){setItems(list.services);setReady(true);}})
-      .catch(()=>{if(!ignore){setReady(true);setMessage("Cannot load private Services. Check the local provider or your session.");}});
+      .catch(()=>{if(!ignore){setReady(true);setMessage("Cannot load private Services. Check the provider or your session.");}});
     return ()=>{ignore=true;};
     // Parent remounts the editor for each selected Tenant.
   },[tenantId]);
@@ -76,7 +76,7 @@ export function LocalServices({tenantId,defaultCurrency}:{tenantId:string;defaul
       if(!saved)throw new Error("Saved Service could not be read back.");
       setItems(result.services);select(saved);
       setMessage(saved.status==="ARCHIVED"?"Service archived; future bookings cannot use it. Its ID/history remain.":
-        `Saved Service to local PostgreSQL (revision ${saved.revision}). Still unpublished.`);
+        `Saved Service to the database (revision ${saved.revision}). Still unpublished.`);
     }catch(error){setMessage(error instanceof Error?error.message:"Service save failed.");}
     finally{setBusy(false);}
   }
@@ -98,7 +98,7 @@ export function LocalServices({tenantId,defaultCurrency}:{tenantId:string;defaul
     <div className="flex flex-wrap gap-2">
       <button className={button} type="button" disabled={busy||!ready} onClick={startNew}>Add Service</button>
       <button className={button} type="button" disabled={busy||!ready}
-        onClick={()=>void reload().then(()=>setMessage("Services reloaded.")).catch(()=>setMessage("Local provider unavailable."))}>Reload saved Services</button>
+        onClick={()=>void reload().then(()=>setMessage("Services reloaded.")).catch(()=>setMessage("Provider unavailable."))}>Reload saved Services</button>
     </div>
     <div className="flex flex-wrap gap-2" aria-label="Saved Services">
       {items.map(item=><button key={item.service_id} type="button" className={button}
@@ -168,7 +168,7 @@ export function LocalServices({tenantId,defaultCurrency}:{tenantId:string;defaul
         Eligible for future online booking (still no public booking)
       </label>
       <div className="flex flex-wrap gap-2">
-        <button className={button} disabled={locked}>Save Service locally</button>
+        <button className={button} disabled={locked}>Save Service</button>
         {chosen&&draft.status!=="ARCHIVED"&&<button type="button" className={button} disabled={busy}
           onClick={()=>{const current=items.find(v=>v.service_id===chosen);
             if(current&&window.confirm("Archive this Service? It will no longer accept new bookings, but its history will remain."))
