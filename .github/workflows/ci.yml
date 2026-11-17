@@ -25,7 +25,45 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      - name: Pinned shared-account M2 compatibility preview (offline only)
+        run: pnpm test:shared-preview
       - run: pnpm build
+      - name: Built standalone route boundary
+        timeout-minutes: 2
+        run: |
+          setsid pnpm exec vite preview --host 127.0.0.1 --port 5185 --strictPort > /tmp/reserve-site.log 2>&1 &
+          site_pid=$!
+          trap 'kill -- "-$site_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:5185/health > /dev/null; then break; fi
+            sleep 1
+          done
+          node scripts/site-smoke.mjs http://127.0.0.1:5185
+      - run: pnpm build:ssr-preview
+      - name: Isolated SSR preview HTTP and artifact boundary
+        timeout-minutes: 2
+        run: |
+          node ssr-preview/verify.mjs --for-publication
+          setsid pnpm exec wrangler dev --config build/server/wrangler.json --ip 127.0.0.1 --port 5186 --local > /tmp/ssr-preview.log 2>&1 &
+          ssr_pid=$!
+          trap 'kill -- "-$ssr_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:5186/health > /dev/null; then break; fi
+            sleep 1
+          done
+          node ssr-preview/smoke.mjs http://127.0.0.1:5186
+      - run: pnpm build:playground-preview
+      - name: Built preview HTTP boundary
+        timeout-minutes: 2
+        run: |
+          setsid pnpm exec wrangler dev --config preview/wrangler.json --ip 127.0.0.1 --port 5182 --local > /tmp/playground-preview.log 2>&1 &
+          preview_pid=$!
+          trap 'kill -- "-$preview_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:5182/version.json > /dev/null; then break; fi
+            sleep 1
+          done
+          node preview/smoke.mjs http://127.0.0.1:5182
 
   database-security:
     name: database-security
@@ -65,6 +103,29 @@ jobs:
       - name: Genuine Auth and PostgREST security tests
         run: pnpm test:security
         timeout-minutes: 10
+      - name: Local authenticated UI persistence and restart proof
+        timeout-minutes: 4
+        run: |
+          start_local() {
+            setsid pnpm dev:local-tenant > /tmp/local-tenant.log 2>&1 &
+            local_pid=$!
+            for attempt in $(seq 1 40); do
+              if curl --fail --silent http://127.0.0.1:5192/development/business > /dev/null; then return; fi
+              sleep 1
+            done
+            exit 1
+          }
+          trap 'kill -- "-$local_pid" 2>/dev/null || true' EXIT
+          start_local
+          node local/smoke.mjs
+          kill -- "-$local_pid" 2>/dev/null || true
+          wait "$local_pid" 2>/dev/null || true
+          sleep 2
+          start_local
+          node local/smoke.mjs --resume
+          kill -- "-$local_pid" 2>/dev/null || true
+          wait "$local_pid" 2>/dev/null || true
+          node tests/database/ci.mjs reset
       - name: Verify canonical restoration and fixture hygiene
         run: node tests/database/ci.mjs hygiene
         timeout-minutes: 2

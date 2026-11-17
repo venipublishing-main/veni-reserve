@@ -214,3 +214,8 @@ Database work follows the [migration convention](../../supabase/migrations/READM
 in M1. Architecture changes follow the [ADR process](../adr/README.md).
 M0 staging deployment follows the procedure above. Production provisioning and
 Supabase linking remain separate explicit steps.
+
+## Standalone site and onboarding entry
+
+See [the gated site/onboarding runbook](site-onboarding-spine.md) for the current
+local candidate, shared-account decision, evidence limits and review commands.

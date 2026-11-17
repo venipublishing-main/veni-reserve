@@ -1,53 +1,6 @@
-import catalogue from "./settings-catalogue.json";
-
-const zones = new Set(catalogue.zone.split(" "));
-const currencies = new Set(catalogue.currency.split(" "));
-const languages = new Set(catalogue.language.split(" "));
-const regions = new Set(catalogue.region.split(" "));
-const edgeSpaces = (s: string) => s.replace(/^ +| +$/g, "");
+import { settingsInput } from "./business-settings";
+export { settingsInput } from "./business-settings";
 const record = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
-function keys(v: unknown, allowed: string[]): v is Record<string, unknown> {
-  return record(v) && Object.keys(v).every(k => allowed.includes(k));
-}
-
-function safeText(value: unknown, limit: number) {
-  if (typeof value !== "string") return null;
-  const v = edgeSpaces(value.normalize("NFC"));
-  if (!v || [...v].length > limit || /[\p{Cc}\p{Cs}\p{Bidi_Control}\u2028\u2029<>{}]/u.test(v)
-    || /^\p{White_Space}|\p{White_Space}$/u.test(v)) return null;
-  return v;
-}
-
-export function settingsInput(value: unknown) {
-  if (!keys(value, ["expected_revision", "settings"])) return null;
-  const r = value.expected_revision;
-  if (typeof r !== "number" || !Number.isInteger(r) || r < 0 || r > 2147483646) return null;
-  const s = value.settings;
-  if (!keys(s, ["display_name","timezone","default_locale","default_currency","terminology"])) return null;
-  const name = safeText(s.display_name, 120);
-  const zone = typeof s.timezone === "string" && edgeSpaces(s.timezone);
-  const locale = typeof s.default_locale === "string" && edgeSpaces(s.default_locale);
-  const rawCurrency = typeof s.default_currency === "string" && edgeSpaces(s.default_currency);
-  if (!name || !zone || !zones.has(zone) || !locale || !/^[a-zA-Z]{2,3}(-[a-zA-Z]{2})?$/.test(locale)
-    || !rawCurrency || !/^[a-zA-Z]{3}$/.test(rawCurrency)) return null;
-  const [lang, region] = locale.split("-");
-  const currency = rawCurrency.toUpperCase();
-  if (!languages.has(lang.toLowerCase()) || (region && !regions.has(region.toUpperCase())) || !currencies.has(currency)) return null;
-  let singular = null, plural = null;
-  if ("terminology" in s) {
-    if (!keys(s.terminology, ["staff_member"])) return null;
-    if ("staff_member" in s.terminology) {
-      const pair = s.terminology.staff_member;
-      if (!keys(pair, ["singular","plural"])) return null;
-      singular = safeText(pair.singular, 40);
-      plural = safeText(pair.plural, 40);
-      if (!singular || !plural) return null;
-    }
-  }
-  return { expected_revision: r, display_name: name, timezone: zone,
-    default_locale: lang.toLowerCase() + (region ? "-" + region.toUpperCase() : ""),
-    default_currency: currency, staff_member_singular: singular, staff_member_plural: plural };
-}
 
 class RequestFault extends Error {
   constructor(readonly status: number, readonly code: string) { super(code); }
@@ -102,8 +55,9 @@ function reply(data: unknown, status: number, headers?: Record<string,string>) {
 const failure = (code: string,status: number) => reply({error:{code}},status);
 
 export async function businessSettings(request: Request, target: string, env: {
-  VENI_ENV: string; SUPABASE_URL?: string; SUPABASE_PUBLISHABLE_KEY?: string;
-}) {
+  VENI_ENV: string; VENI_ACCOUNT_MODE?: "standalone" | "shared";
+  SUPABASE_URL?: string; SUPABASE_PUBLISHABLE_KEY?: string;
+}): Promise<Response> {
   if (!["GET","PUT"].includes(request.method)) return reply({error:{code:"method_not_allowed"}},405,{Allow:"GET, PUT"});
   if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(target)) return failure("malformed_request",400);
   const bearer = request.headers.get("Authorization");
@@ -115,11 +69,13 @@ export async function businessSettings(request: Request, target: string, env: {
     const input = save ? settingsInput(await readInput(request)) : null;
     if (save && !input) return failure("invalid_input",422);
     const base = new URL(env.SUPABASE_URL ?? "");
-    const local = env.VENI_ENV === "dev" && base.origin === "http://127.0.0.1:54321";
+    const local = env.VENI_ENV === "dev" && (base.origin === "http://127.0.0.1:54321" ||
+      (env.VENI_ACCOUNT_MODE === "shared" && base.origin === "http://127.0.0.1:56321"));
     if ((!local && base.protocol !== "https:") || base.username || base.password || base.pathname !== "/" || base.search || base.hash ||
       !env.SUPABASE_PUBLISHABLE_KEY || !/^sb_publishable_[A-Za-z0-9_-]+$/.test(env.SUPABASE_PUBLISHABLE_KEY)) return failure("dependency_unavailable",503);
     timer = setTimeout(() => controller.abort(),5000);
-    const res = await fetch(new URL("/rest/v1/rpc/" + (save ? "save" : "read") + "_tenant_business_settings",base), {
+    const prefix = env.VENI_ACCOUNT_MODE === "shared" ? "reserve_" : "";
+    const res = await fetch(new URL("/rest/v1/rpc/" + prefix + (save ? "save" : "read") + "_tenant_business_settings",base), {
       method:"POST",redirect:"manual",signal:controller.signal,
       headers:{"Content-Type":"application/json",apikey:env.SUPABASE_PUBLISHABLE_KEY,Authorization:bearer},
       body:JSON.stringify({target,...input}),

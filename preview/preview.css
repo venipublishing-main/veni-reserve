@@ -1,0 +1,7 @@
+@import "../app/app.css";
+@source "./main.tsx";
+.feedback-preview-shell { display: flex; flex-direction: column; min-height: 100dvh; }
+.feedback-preview-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 8px 16px; background: #e2e8f0; color: #0f172a; font-size: 12px; }
+.feedback-preview-banner button { border: 1px solid #64748b; background: white; border-radius: 6px; padding: 4px 8px; }
+.feedback-preview-shell:has(> .playground-reception) { height: 100dvh; }
+.feedback-preview-shell > .playground-reception { height: auto; flex: 1; min-height: 0; }
