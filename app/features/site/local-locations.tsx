@@ -52,8 +52,7 @@ export function LocalLocations({ tenantId }: { tenantId: string }) {
     void api<LocationList>().then(result => { if (!ignore) { setItems(result.locations);setReady(true); } })
       .catch(() => { if (!ignore) { setReady(true);setMessage("Could not load saved Locations. Local provider may be offline."); } });
     return () => { ignore = true; };
-    // Tenant switch remounts via key, initial query only.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Tenant switch remounts via key; this is the initial read.
   },[tenantId]);
   function select(location: SavedLocation) {
     setChosen(location.location_id);setRevision(location.revision);setDraft(editableFields(location));setMessage("");
