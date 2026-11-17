@@ -60,7 +60,10 @@ select results_eq($$select p.oid::regprocedure::text from pg_proc p join pg_name
  where n.nspname='private' and p.oid not in ('private.authenticated_session_user()'::regprocedure,'private.bootstrap_setup_tenant(uuid)'::regprocedure,'private.read_tenant_business_settings(uuid)'::regprocedure,'private.save_tenant_business_settings(uuid,integer,text,text,text,text,text,text)'::regprocedure,
  'private.list_tenant_themes(uuid)'::regprocedure,'private.read_tenant_theme(uuid,uuid)'::regprocedure,
  'private.read_tenant_theme_revision(uuid,uuid,integer)'::regprocedure,'private.create_tenant_theme(uuid,text,jsonb)'::regprocedure,
- 'private.save_tenant_theme_revision(uuid,uuid,integer,jsonb)'::regprocedure) and has_function_privilege('authenticated',p.oid,'EXECUTE') order by 1$$,
+ 'private.save_tenant_theme_revision(uuid,uuid,integer,jsonb)'::regprocedure,
+ 'private.list_tenant_locations(uuid)'::regprocedure,
+ 'private.save_tenant_location(uuid,uuid,integer,jsonb)'::regprocedure)
+ and has_function_privilege('authenticated',p.oid,'EXECUTE') order by 1$$,
  $$select signature from helpers order by 1$$,'Exactly eight executable signatures; integrity triggers not exposed');
 select is((select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace,
  lateral aclexplode(coalesce(p.proacl,acldefault('f',p.proowner))) a where n.nspname='private' and (a.grantee=0 or a.is_grantable and a.grantee='authenticated'::regrole)),
