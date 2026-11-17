@@ -7,6 +7,8 @@ import type { Plugin } from "vite";
 import { businessSettings } from "../app/lib/business-settings.server";
 import { locationAttributes, locationList, locationSaveResult } from "../app/lib/locations";
 import { serviceAttributes, serviceList, serviceSaveResult } from "../app/lib/services";
+import { staffAttributes,staffList,staffSaveResult,eligibilityAttributes,
+  eligibilityList,eligibilitySaveResult } from "../app/lib/staff";
 import { newThemeInput, savedThemeInput, themeRecord, themeSummaries, themeVersion } from "../app/lib/theme-revisions";
 import { guardEnvironment } from "../tests/database/ci.mjs";
 const origin = "http://127.0.0.1:5192", provider = "http://127.0.0.1:54321";
@@ -92,6 +94,21 @@ export function createLocalHandler(state: State) {
       if(Object.hasOwn(codes,value.error))return reply({error:value.error},codes[value.error]);
     }
     return validate(value)?reply(value,successStatus):reply({error:"service_dependency_unavailable"},503);
+  }
+  async function staffCall(name:string,token:string,body:object,
+    validate:(data:unknown)=>boolean,successStatus=200){
+    const response=await rpc(name,token,body);
+    if(!response.ok)return reply({error:"staff_dependency_unavailable"},503);
+    const value:unknown=await response.json();
+    if(object(value)&&typeof value.error==="string"){
+      const codes:Record<string,number>={
+        unauthorized:403,tenant_unavailable:404,staff_unavailable:404,
+        relation_unavailable:404,relation_exists:409,revision_conflict:409,
+        invalid_input:422,dependency_unavailable:503,
+      };
+      if(Object.hasOwn(codes,value.error))return reply({error:value.error},codes[value.error]);
+    }
+    return validate(value)?reply(value,successStatus):reply({error:"staff_dependency_unavailable"},503);
   }
   return async (request: Request): Promise<Response> => {
     if (!localHarnessAllowed(request)) return reply({ error: "local_origin_required" }, 403);
@@ -201,6 +218,57 @@ export function createLocalHandler(state: State) {
           return serviceCall("save_tenant_service",token,
             {target:tenantId,service:serviceId??null,expected:input.expected_revision,attributes},
             serviceSaveResult,serviceId?200:201);
+        }
+        return reply({error:"method_not_allowed"},405);
+      }
+      const staffPath=/^\/tenants\/([a-f0-9-]{36})\/staff(?:\/([a-f0-9-]{36}))?$/.exec(path);
+      if(staffPath){
+        const [,tenantId,staffId]=staffPath;
+        if(!uuid(tenantId)||(staffId&&!uuid(staffId)))return reply({error:"malformed_request"},400);
+        if(!(await tenants(token)).some(t=>t.id===tenantId))return reply({error:"tenant_unavailable"},404);
+        if(!staffId&&request.method==="GET")
+          return staffCall("list_tenant_staff",token,{target:tenantId},staffList);
+        if(["POST","PUT"].includes(request.method)&&
+          ((request.method==="POST"&&!staffId)||(request.method==="PUT"&&!!staffId))){
+          let input:unknown;
+          try{input=await request.json();}catch{return reply({error:"malformed_request"},400);}
+          if(!object(input)||Object.keys(input).length!==2||
+            !Object.hasOwn(input,"expected_revision")||!Object.hasOwn(input,"attributes")||
+            !Number.isInteger(input.expected_revision)||
+            (input.expected_revision as number)<(staffId?1:0)||
+            (input.expected_revision as number)>2147483646||
+            (!staffId&&input.expected_revision!==0))return reply({error:"invalid_input"},422);
+          const attributes=staffAttributes(input.attributes);
+          if(!attributes||(!staffId&&attributes.status==="ARCHIVED"))
+            return reply({error:"invalid_input"},422);
+          return staffCall("save_tenant_staff",token,
+            {target:tenantId,staff:staffId??null,expected:input.expected_revision,attributes},
+            staffSaveResult,staffId?200:201);
+        }
+        return reply({error:"method_not_allowed"},405);
+      }
+      const eligibilityPath=/^\/tenants\/([a-f0-9-]{36})\/eligibility(?:\/([a-f0-9-]{36}))?$/.exec(path);
+      if(eligibilityPath){
+        const [,tenantId,linkId]=eligibilityPath;
+        if(!uuid(tenantId)||(linkId&&!uuid(linkId)))return reply({error:"malformed_request"},400);
+        if(!(await tenants(token)).some(t=>t.id===tenantId))return reply({error:"tenant_unavailable"},404);
+        if(!linkId&&request.method==="GET")
+          return staffCall("list_tenant_eligibility",token,{target:tenantId},eligibilityList);
+        if(["POST","PUT"].includes(request.method)&&
+          ((request.method==="POST"&&!linkId)||(request.method==="PUT"&&!!linkId))){
+          let input:unknown;
+          try{input=await request.json();}catch{return reply({error:"malformed_request"},400);}
+          if(!object(input)||Object.keys(input).length!==2||
+            !Object.hasOwn(input,"expected_revision")||!Object.hasOwn(input,"attributes")||
+            !Number.isInteger(input.expected_revision)||
+            (input.expected_revision as number)<(linkId?1:0)||
+            (input.expected_revision as number)>2147483646||
+            (!linkId&&input.expected_revision!==0))return reply({error:"invalid_input"},422);
+          const attributes=eligibilityAttributes(input.attributes);
+          if(!attributes)return reply({error:"invalid_input"},422);
+          return staffCall("save_tenant_eligibility",token,
+            {target:tenantId,link:linkId??null,expected:input.expected_revision,attributes},
+            eligibilitySaveResult,linkId?200:201);
         }
         return reply({error:"method_not_allowed"},405);
       }

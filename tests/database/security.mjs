@@ -2,6 +2,7 @@ import { bootstrapProof } from "./tenant-bootstrap.ts";
 import { themeProof } from "./theme-revisions.ts";
 import { locationProof } from "./location-persistence.ts";
 import { serviceProof } from "./service-persistence.ts";
+import { staffProof } from "./staff-persistence.ts";
 import { settingsProof } from "./m2_1_security.ts";
 import console from "node:console";
 import { randomUUID } from "node:crypto";
@@ -229,4 +230,5 @@ await withLocalSecurity(async context => {
   await themeProof(context);
   await locationProof(context);
   await serviceProof(context);
+  await staffProof(context);
 });

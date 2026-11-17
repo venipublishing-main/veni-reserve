@@ -44,11 +44,22 @@ if (process.argv.includes("--resume")) {
   assert.equal(services.data.services[0].revision,2);
   assert.equal(services.data.services[0].duration_minutes,evidence.duration);
   assert.equal(services.data.services[0].price_minor_units,evidence.price);
+  const roster=await a.api(`/tenants/${evidence.tenant}/staff`);
+  assert.equal(roster.status,200);assert.equal(roster.data.staff.length,1);
+  assert.equal(roster.data.staff[0].staff_id,evidence.staff);
+  assert.equal(roster.data.staff[0].revision,2);
+  assert.equal(roster.data.staff[0].biography,evidence.biography);
+  const links=await a.api(`/tenants/${evidence.tenant}/eligibility`);
+  assert.equal(links.status,200);assert.equal(links.data.eligibility.length,3);
+  assert.equal(links.data.eligibility.find(e=>e.kind==="STAFF_SERVICE").eligibility_id,evidence.staffService);
+  assert.equal(links.data.eligibility.find(e=>e.kind==="STAFF_SERVICE").revision,2);
+  assert.equal(links.data.eligibility.find(e=>e.kind==="STAFF_SERVICE").duration_override_minutes,75);
+  assert.equal(links.data.eligibility.filter(e=>e.enabled).length,3);
   const theme = await a.api(`/tenants/${evidence.tenant}/themes/${evidence.theme}`);
   assert.equal(theme.status, 200); assert.equal(theme.data.current_revision, 2);
   assert.deepEqual(theme.data.tokens, evidence.tokens);
   assert.deepEqual(theme.data.history.map(h => h.revision), [2,1]);
-  console.log("PASS business, Locations, Services and immutable Theme persistence after actual local restart and fresh genuine Auth sign-in");
+  console.log("PASS business, Locations, Services, Staff, explicit eligibility and immutable Theme persistence after actual local restart and fresh genuine Auth sign-in");
   process.exit(0);
 }
 const [first, retry] = await Promise.all([a.api("/bootstrap", "POST", { request_key: session.request_key }), a.api("/bootstrap", "POST", { request_key: session.request_key })]);
@@ -94,6 +105,42 @@ assert.equal((await a.api(servicePath,"PUT",{expected_revision:1,attributes:serv
 assert.equal((await a.api(servicesPath)).data.services[0].duration_minutes,60);
 assert.equal((await a.api(servicePath,"PUT",{expected_revision:2,attributes:editedService},
   {Origin:"https://foreign.invalid"})).status,403);
+const staffPath=`/tenants/${tenant}/staff`,eligibilityPath=`/tenants/${tenant}/eligibility`;
+const staffAttributes={name:"Dr Synthetic Optometrist",public_display_name:"Dr Synthetic",
+  biography:null,status:"ACTIVE",public_visible:false,online_bookable:true,
+  no_preference_eligible:true,sort_order:0};
+assert.deepEqual((await a.api(staffPath)).data.staff,[]);
+const createdStaff=await a.api(staffPath,"POST",{expected_revision:0,attributes:staffAttributes});
+assert.equal(createdStaff.status,201);assert.equal(createdStaff.data.revision,1);
+const staffId=createdStaff.data.staff_id,staffDetailPath=`${staffPath}/${staffId}`;
+assert.equal((await a.api(staffDetailPath,"PUT",{expected_revision:1,attributes:{...staffAttributes,
+  biography:"For local synthetic testing only"}})).status,200);
+assert.equal((await a.api(staffDetailPath,"PUT",{expected_revision:1,attributes:staffAttributes})).status,409);
+assert.equal((await a.api(staffDetailPath,"PUT",{expected_revision:2,attributes:staffAttributes},
+  {Origin:"https://foreign.invalid"})).status,403);
+assert.deepEqual((await a.api(eligibilityPath)).data.eligibility,[]);
+const pair=(kind,person,offering,branch)=>({kind,staff_id:person,service_id:offering,
+  location_id:branch,enabled:true,duration_override_minutes:null,price_override_minor_units:null,
+  buffer_before_override_minutes:null,buffer_after_override_minutes:null,
+  online_bookable_override:null});
+const ss=pair("STAFF_SERVICE",staffId,serviceId,null),
+  sl=pair("STAFF_LOCATION",staffId,null,locationId),
+  vl=pair("SERVICE_LOCATION",null,serviceId,locationId);
+const createdLinks=[];
+for(const attributes of [ss,sl,vl]){
+  const result=await a.api(eligibilityPath,"POST",{expected_revision:0,attributes});
+  assert.equal(result.status,201);assert.equal(result.data.revision,1);
+  createdLinks.push(result.data.eligibility_id);
+}
+assert.equal((await a.api(eligibilityPath)).data.eligibility.length,3);
+assert.equal((await a.api(eligibilityPath,"POST",{expected_revision:0,attributes:ss})).status,409);
+const staffServicePath=`${eligibilityPath}/${createdLinks[0]}`;
+const editedLink={...ss,duration_override_minutes:75,price_override_minor_units:65000};
+assert.equal((await a.api(staffServicePath,"PUT",{expected_revision:1,attributes:editedLink})).status,200);
+assert.equal((await a.api(staffServicePath,"PUT",{expected_revision:1,attributes:ss})).status,409);
+assert.equal((await a.api(staffServicePath,"PUT",{expected_revision:2,attributes:editedLink},
+  {Origin:"https://foreign.invalid"})).status,403);
+assert.equal((await a.api(servicesPath)).data.services[0].duration_minutes,60);
 const themesPath = `/tenants/${tenant}/themes`;
 assert.deepEqual((await a.api(themesPath)).data.themes, []);
 const starter = { primary: "#244b42", accent: "#d8e9d9", typography: "system" };
@@ -122,6 +169,10 @@ assert.equal((await b.api(locationsPath)).status,404);
 assert.equal((await b.api(locationPath,"PUT",{expected_revision:2,attributes})).status,404);
 assert.equal((await b.api(servicesPath)).status,404);
 assert.equal((await b.api(servicePath,"PUT",{expected_revision:2,attributes:editedService})).status,404);
+assert.equal((await b.api(staffPath)).status,404);
+assert.equal((await b.api(staffDetailPath,"PUT",{expected_revision:2,attributes:staffAttributes})).status,404);
+assert.equal((await b.api(eligibilityPath)).status,404);
+assert.equal((await b.api(staffServicePath,"PUT",{expected_revision:2,attributes:ss})).status,404);
 const old = new Map(a.cookies);
 assert.equal((await a.api("/logout", "POST")).status, 200);
 a.cookies.clear(); for (const [k,v] of old) a.cookies.set(k,v);
@@ -129,9 +180,12 @@ assert.equal((await a.api(path, "PUT", { expected_revision: 2, settings })).stat
 assert.equal((await a.api(themePath)).status, 401);
 assert.equal((await a.api(locationsPath)).status,401);
 assert.equal((await a.api(servicesPath)).status,401);
+assert.equal((await a.api(staffPath)).status,401);
+assert.equal((await a.api(eligibilityPath)).status,401);
 await mkdir(".tmp", { recursive: true });
 // Non-secret synthetic receipt only. Never write cookies, keys or provider tokens.
 await writeFile(".tmp/local-tenant-proof.json", JSON.stringify({ user: session.user.id, tenant, settings,
   theme: themeId, tokens: nextTokens,location:locationId,description:editedLocation.description,
-  service:serviceId,duration:editedService.duration_minutes,price:editedService.price_minor_units }));
-console.log("PASS real local HTTP: synthetic Auth, secure cookies, bootstrap/retry, business, Locations, Services and Theme revisions, stale conflicts, tenant isolation, CSRF and logout revocation");
+  service:serviceId,duration:editedService.duration_minutes,price:editedService.price_minor_units,
+  staff:staffId,biography:"For local synthetic testing only",staffService:createdLinks[0] }));
+console.log("PASS real local HTTP: synthetic Auth, secure cookies, bootstrap/retry, business, Locations, Services, Staff, explicit eligibility and Theme revisions, stale conflicts, tenant isolation, CSRF and logout revocation");
