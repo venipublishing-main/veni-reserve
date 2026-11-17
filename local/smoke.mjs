@@ -38,11 +38,17 @@ if (process.argv.includes("--resume")) {
   assert.equal(locations.data.locations[0].location_id,evidence.location);
   assert.equal(locations.data.locations[0].revision,2);
   assert.deepEqual(locations.data.locations[0].description,evidence.description);
+  const services=await a.api(`/tenants/${evidence.tenant}/services`);
+  assert.equal(services.status,200);assert.equal(services.data.services.length,1);
+  assert.equal(services.data.services[0].service_id,evidence.service);
+  assert.equal(services.data.services[0].revision,2);
+  assert.equal(services.data.services[0].duration_minutes,evidence.duration);
+  assert.equal(services.data.services[0].price_minor_units,evidence.price);
   const theme = await a.api(`/tenants/${evidence.tenant}/themes/${evidence.theme}`);
   assert.equal(theme.status, 200); assert.equal(theme.data.current_revision, 2);
   assert.deepEqual(theme.data.tokens, evidence.tokens);
   assert.deepEqual(theme.data.history.map(h => h.revision), [2,1]);
-  console.log("PASS business and immutable Theme persistence after actual local application restart and fresh genuine Auth sign-in");
+  console.log("PASS business, Locations, Services and immutable Theme persistence after actual local restart and fresh genuine Auth sign-in");
   process.exit(0);
 }
 const [first, retry] = await Promise.all([a.api("/bootstrap", "POST", { request_key: session.request_key }), a.api("/bootstrap", "POST", { request_key: session.request_key })]);
@@ -72,6 +78,22 @@ assert.equal((await a.api(locationPath,"PUT",{expected_revision:1,attributes})).
 assert.equal((await a.api(locationsPath)).data.locations[0].description,editedLocation.description);
 assert.equal((await a.api(locationPath,"PUT",{expected_revision:2,attributes:editedLocation},
   {Origin:"https://foreign.invalid"})).status,403);
+const servicesPath=`/tenants/${tenant}/services`;
+const serviceAttributes={name:"Fictional eye examination",description:"Synthetic training service",category:"Consultations",
+  duration_minutes:45,price_minor_units:45000,currency_override:null,price_display:"AMOUNT",
+  buffer_before_minutes:5,buffer_after_minutes:10,min_notice_minutes:null,max_advance_days:null,
+  public_visible:false,online_bookable:false,sort_order:0,status:"ACTIVE"};
+assert.deepEqual((await a.api(servicesPath)).data.services,[]);
+const newService=await a.api(servicesPath,"POST",{expected_revision:0,attributes:serviceAttributes});
+assert.equal(newService.status,201);assert.equal(newService.data.revision,1);
+const serviceId=newService.data.service_id,servicePath=`${servicesPath}/${serviceId}`;
+const editedService={...serviceAttributes,duration_minutes:60,price_minor_units:50000,
+  public_visible:true,online_bookable:true};
+assert.equal((await a.api(servicePath,"PUT",{expected_revision:1,attributes:editedService})).status,200);
+assert.equal((await a.api(servicePath,"PUT",{expected_revision:1,attributes:serviceAttributes})).status,409);
+assert.equal((await a.api(servicesPath)).data.services[0].duration_minutes,60);
+assert.equal((await a.api(servicePath,"PUT",{expected_revision:2,attributes:editedService},
+  {Origin:"https://foreign.invalid"})).status,403);
 const themesPath = `/tenants/${tenant}/themes`;
 assert.deepEqual((await a.api(themesPath)).data.themes, []);
 const starter = { primary: "#244b42", accent: "#d8e9d9", typography: "system" };
@@ -98,14 +120,18 @@ assert.equal((await b.api(themePath)).status, 404);
 assert.equal((await b.api(themePath, "PUT", { expected_revision: 2, tokens: starter })).status, 404);
 assert.equal((await b.api(locationsPath)).status,404);
 assert.equal((await b.api(locationPath,"PUT",{expected_revision:2,attributes})).status,404);
+assert.equal((await b.api(servicesPath)).status,404);
+assert.equal((await b.api(servicePath,"PUT",{expected_revision:2,attributes:editedService})).status,404);
 const old = new Map(a.cookies);
 assert.equal((await a.api("/logout", "POST")).status, 200);
 a.cookies.clear(); for (const [k,v] of old) a.cookies.set(k,v);
 assert.equal((await a.api(path, "PUT", { expected_revision: 2, settings })).status, 401);
 assert.equal((await a.api(themePath)).status, 401);
 assert.equal((await a.api(locationsPath)).status,401);
+assert.equal((await a.api(servicesPath)).status,401);
 await mkdir(".tmp", { recursive: true });
 // Non-secret synthetic receipt only. Never write cookies, keys or provider tokens.
 await writeFile(".tmp/local-tenant-proof.json", JSON.stringify({ user: session.user.id, tenant, settings,
-  theme: themeId, tokens: nextTokens,location:locationId,description:editedLocation.description }));
-console.log("PASS real local HTTP: synthetic Auth, secure cookies, bootstrap/retry, business, Locations and Theme revisions, stale conflicts, tenant isolation, CSRF and logout revocation");
+  theme: themeId, tokens: nextTokens,location:locationId,description:editedLocation.description,
+  service:serviceId,duration:editedService.duration_minutes,price:editedService.price_minor_units }));
+console.log("PASS real local HTTP: synthetic Auth, secure cookies, bootstrap/retry, business, Locations, Services and Theme revisions, stale conflicts, tenant isolation, CSRF and logout revocation");

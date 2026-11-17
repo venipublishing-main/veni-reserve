@@ -11,6 +11,7 @@
     "app/lib/business-settings.ts",
     "app/lib/theme-revisions.ts",
     "app/lib/locations.ts",
+    "app/lib/services.ts",
     "app/lib/settings-catalogue.json"
   ],
   "compilerOptions": {
