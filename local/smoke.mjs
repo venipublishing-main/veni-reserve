@@ -33,6 +33,11 @@ if (process.argv.includes("--resume")) {
   const restored = await a.api(`/tenants/${evidence.tenant}/settings`);
   assert.equal(restored.status, 200); assert.equal(restored.data.revision, 2);
   assert.deepEqual(restored.data.settings, evidence.settings);
+  const locations = await a.api(`/tenants/${evidence.tenant}/locations`);
+  assert.equal(locations.status,200); assert.equal(locations.data.locations.length,1);
+  assert.equal(locations.data.locations[0].location_id,evidence.location);
+  assert.equal(locations.data.locations[0].revision,2);
+  assert.deepEqual(locations.data.locations[0].description,evidence.description);
   const theme = await a.api(`/tenants/${evidence.tenant}/themes/${evidence.theme}`);
   assert.equal(theme.status, 200); assert.equal(theme.data.current_revision, 2);
   assert.deepEqual(theme.data.tokens, evidence.tokens);
@@ -52,6 +57,21 @@ settings.display_name = "Edited Fictional Local Persistence Review";
 assert.equal((await a.api(path, "PUT", { expected_revision: 1, settings })).status, 200);
 assert.deepEqual((await a.api(path)).data.settings, settings);
 assert.equal((await a.api(path, "PUT", { expected_revision: 2, settings }, { Origin: "https://foreign.invalid" })).status, 403);
+const locationsPath = `/tenants/${tenant}/locations`;
+const attributes = {name:"Fictional Pretoria branch",kind:"PHYSICAL",description:null,
+  timezone_override:null,public_visible:false,sort_order:0,status:"ACTIVE"};
+assert.deepEqual((await a.api(locationsPath)).data.locations,[]);
+const newLocation = await a.api(locationsPath,"POST",{expected_revision:0,attributes});
+assert.equal(newLocation.status,201); assert.equal(newLocation.data.revision,1);
+const locationId = newLocation.data.location_id;
+const locationPath = `${locationsPath}/${locationId}`;
+assert.equal((await a.api(locationsPath,"POST",{expected_revision:0,attributes})).status,409);
+const editedLocation = {...attributes,description:"Fictional location details",public_visible:true};
+assert.equal((await a.api(locationPath,"PUT",{expected_revision:1,attributes:editedLocation})).status,200);
+assert.equal((await a.api(locationPath,"PUT",{expected_revision:1,attributes})).status,409);
+assert.equal((await a.api(locationsPath)).data.locations[0].description,editedLocation.description);
+assert.equal((await a.api(locationPath,"PUT",{expected_revision:2,attributes:editedLocation},
+  {Origin:"https://foreign.invalid"})).status,403);
 const themesPath = `/tenants/${tenant}/themes`;
 assert.deepEqual((await a.api(themesPath)).data.themes, []);
 const starter = { primary: "#244b42", accent: "#d8e9d9", typography: "system" };
@@ -76,12 +96,16 @@ assert.equal((await b.api(path, "PUT", { expected_revision: 2, settings })).stat
 assert.equal((await b.api(themesPath)).status, 404);
 assert.equal((await b.api(themePath)).status, 404);
 assert.equal((await b.api(themePath, "PUT", { expected_revision: 2, tokens: starter })).status, 404);
+assert.equal((await b.api(locationsPath)).status,404);
+assert.equal((await b.api(locationPath,"PUT",{expected_revision:2,attributes})).status,404);
 const old = new Map(a.cookies);
 assert.equal((await a.api("/logout", "POST")).status, 200);
 a.cookies.clear(); for (const [k,v] of old) a.cookies.set(k,v);
 assert.equal((await a.api(path, "PUT", { expected_revision: 2, settings })).status, 401);
 assert.equal((await a.api(themePath)).status, 401);
+assert.equal((await a.api(locationsPath)).status,401);
 await mkdir(".tmp", { recursive: true });
 // Non-secret synthetic receipt only. Never write cookies, keys or provider tokens.
-await writeFile(".tmp/local-tenant-proof.json", JSON.stringify({ user: session.user.id, tenant, settings, theme: themeId, tokens: nextTokens }));
-console.log("PASS real local HTTP: synthetic Auth, secure cookies, bootstrap/retry, business and immutable Theme revisions, stale conflicts, tenant isolation, CSRF and logout revocation");
+await writeFile(".tmp/local-tenant-proof.json", JSON.stringify({ user: session.user.id, tenant, settings,
+  theme: themeId, tokens: nextTokens,location:locationId,description:editedLocation.description }));
+console.log("PASS real local HTTP: synthetic Auth, secure cookies, bootstrap/retry, business, Locations and Theme revisions, stale conflicts, tenant isolation, CSRF and logout revocation");
