@@ -12,6 +12,7 @@
     "app/lib/theme-revisions.ts",
     "app/lib/locations.ts",
     "app/lib/services.ts",
+    "app/lib/staff.ts",
     "app/lib/settings-catalogue.json"
   ],
   "compilerOptions": {
