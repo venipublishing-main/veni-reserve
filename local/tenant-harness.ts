@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 import type { Plugin } from "vite";
 import { businessSettings } from "../app/lib/business-settings.server";
 import { locationAttributes, locationList, locationSaveResult } from "../app/lib/locations";
+import { serviceAttributes, serviceList, serviceSaveResult } from "../app/lib/services";
 import { newThemeInput, savedThemeInput, themeRecord, themeSummaries, themeVersion } from "../app/lib/theme-revisions";
 import { guardEnvironment } from "../tests/database/ci.mjs";
 const origin = "http://127.0.0.1:5192", provider = "http://127.0.0.1:54321";
@@ -77,6 +78,20 @@ export function createLocalHandler(state: State) {
       if (Object.hasOwn(codes,value.error)) return reply({ error: value.error }, codes[value.error]);
     }
     return validate(value) ? reply(value,successStatus) : reply({ error: "location_dependency_unavailable" }, 503);
+  }
+  async function serviceCall(name: string, token: string, body: object,
+    validate: (data: unknown) => boolean, successStatus = 200) {
+    const response=await rpc(name,token,body);
+    if(!response.ok)return reply({error:"service_dependency_unavailable"},503);
+    const value:unknown=await response.json();
+    if(object(value)&&typeof value.error==="string"){
+      const codes:Record<string,number>={
+        unauthorized:403,tenant_unavailable:404,service_unavailable:404,
+        invalid_input:422,revision_conflict:409,dependency_unavailable:503,
+      };
+      if(Object.hasOwn(codes,value.error))return reply({error:value.error},codes[value.error]);
+    }
+    return validate(value)?reply(value,successStatus):reply({error:"service_dependency_unavailable"},503);
   }
   return async (request: Request): Promise<Response> => {
     if (!localHarnessAllowed(request)) return reply({ error: "local_origin_required" }, 403);
@@ -163,6 +178,31 @@ export function createLocalHandler(state: State) {
             locationSaveResult,locationId ? 200 : 201);
         }
         return reply({ error: "method_not_allowed" },405);
+      }
+      const servicePath=/^\/tenants\/([a-f0-9-]{36})\/services(?:\/([a-f0-9-]{36}))?$/.exec(path);
+      if(servicePath){
+        const [,tenantId,serviceId]=servicePath;
+        if(!uuid(tenantId)||(serviceId&&!uuid(serviceId)))return reply({error:"malformed_request"},400);
+        if(!(await tenants(token)).some(t=>t.id===tenantId))return reply({error:"tenant_unavailable"},404);
+        if(!serviceId&&request.method==="GET")
+          return serviceCall("list_tenant_services",token,{target:tenantId},serviceList);
+        if(["POST","PUT"].includes(request.method)&&
+          ((request.method==="POST"&&!serviceId)||(request.method==="PUT"&&!!serviceId))){
+          let input:unknown;
+          try{input=await request.json();}catch{return reply({error:"malformed_request"},400);}
+          if(!object(input)||Object.keys(input).length!==2||
+            !Object.hasOwn(input,"expected_revision")||!Object.hasOwn(input,"attributes")||
+            !Number.isInteger(input.expected_revision)||
+            (input.expected_revision as number)<(serviceId?1:0)||
+            (input.expected_revision as number)>2147483646||
+            (!serviceId&&input.expected_revision!==0))return reply({error:"invalid_input"},422);
+          const attributes=serviceAttributes(input.attributes);
+          if(!attributes||(!serviceId&&attributes.status==="ARCHIVED"))return reply({error:"invalid_input"},422);
+          return serviceCall("save_tenant_service",token,
+            {target:tenantId,service:serviceId??null,expected:input.expected_revision,attributes},
+            serviceSaveResult,serviceId?200:201);
+        }
+        return reply({error:"method_not_allowed"},405);
       }
       const themePath = /^\/tenants\/([a-f0-9-]{36})\/themes(?:\/([a-f0-9-]{36})(?:\/revisions\/([0-9]+))?)?$/.exec(path);
       if (themePath) {

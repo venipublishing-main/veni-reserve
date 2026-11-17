@@ -6,6 +6,7 @@ import { SiteShell } from "../features/site/shell";
 import { SetupReview } from "../features/site/setup-review";
 import { LocalThemeStudio } from "../features/site/local-theme-studio";
 import { LocalLocations } from "../features/site/local-locations";
+import { LocalServices } from "../features/site/local-services";
 export function loader({ request }: LoaderFunctionArgs) {
   if (!localReviewAllowed(request, import.meta.env.DEV, env.VENI_ENV)) throw new Response("Not found", { status: 404, headers: privateHeaders });
   return null;
@@ -49,6 +50,7 @@ export default function LocalBusiness() {
     </>}
     <p role="status" aria-live="polite">{message}</p>
     {session && selected && revision > 0 && <LocalLocations key={selected} tenantId={selected} />}
+    {session && selected && revision > 0 && <LocalServices key={selected} tenantId={selected} defaultCurrency={profile.default_currency} />}
     {session && selected && revision > 0 && <LocalThemeStudio key={selected} tenantId={selected} />}
     <details><summary>Brand / Theme Studio — separate unsaved demonstration</summary><p>Business saves above do not save a Theme or Theme Revision. No publishing exists.</p><SetupReview /></details>
   </SiteShell>;
