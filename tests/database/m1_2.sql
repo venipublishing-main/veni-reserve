@@ -5,7 +5,7 @@ select no_plan();
 
 -- Independent inventory: no policy on permissions or private history relations.
 select results_eq($$select jsonb_build_array(schemaname,tablename,policyname,cmd,roles) from pg_policies
- where schemaname in ('public','private') and roles<>array['veni_bootstrap_executor']::name[] and not (schemaname='private' and tablename in ('settings_reference','tenant_business_settings','tenant_business_settings_changes','themes','theme_revisions','theme_revision_events','published_theme_assignments')) order by tablename$$,
+ where schemaname in ('public','private') and roles<>array['veni_bootstrap_executor']::name[] and not (schemaname='private' and tablename in ('settings_reference','tenant_business_settings','tenant_business_settings_changes','themes','theme_revisions','theme_revision_events','published_theme_assignments','locations','location_events')) order by tablename$$,
  $$values
  ('["public","audit_events","audit_events_select_authenticated","SELECT",["authenticated"]]'::jsonb),
  ('["public","membership_roles","membership_roles_select_authenticated","SELECT",["authenticated"]]'::jsonb),
@@ -16,7 +16,7 @@ select results_eq($$select jsonb_build_array(schemaname,tablename,policyname,cmd
  ('["public","users","users_select_authenticated","SELECT",["authenticated"]]'::jsonb)$$,
  'Exact seven SELECT-only authenticated policies');
 select ok(bool_and(qual is not null and qual <> 'true' and with_check is null), 'No blanket or write predicates')
- from pg_policies where schemaname in ('public','private') and roles<>array['veni_bootstrap_executor']::name[] and not (schemaname='private' and tablename in ('settings_reference','tenant_business_settings','tenant_business_settings_changes','themes','theme_revisions','theme_revision_events','published_theme_assignments'));
+ from pg_policies where schemaname in ('public','private') and roles<>array['veni_bootstrap_executor']::name[] and not (schemaname='private' and tablename in ('settings_reference','tenant_business_settings','tenant_business_settings_changes','themes','theme_revisions','theme_revision_events','published_theme_assignments','locations','location_events'));
 
 create temporary table app_relations(name text primary key, readable boolean);
 insert into app_relations values ('public.tenants',true),('public.users',true),('public.memberships',true),
