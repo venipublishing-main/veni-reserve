@@ -1,3 +1,4 @@
+// Node 24-only local proposal tests, excluded from the Cloudflare TS project.
 // Local proposal tests: purely synthetic trusted-server adapters. These are
 // not evidence of hosted Auth, RLS, cross-project sessions or a deployed route.
 import test from "node:test";
