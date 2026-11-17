@@ -25,6 +25,8 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      - name: Pinned shared-account M2 compatibility preview (offline only)
+        run: pnpm test:shared-preview
       - run: pnpm build
       - name: Built standalone route boundary
         timeout-minutes: 2
