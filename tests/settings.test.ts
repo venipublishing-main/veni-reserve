@@ -67,6 +67,18 @@ describe("caller transport",()=>{
     vi.stubGlobal("fetch",vi.fn().mockResolvedValue(new Response("upstream private",{status})));
     const r=await call();expect(r.status).toBe(503);expect(await r.json()).toEqual({error:{code:"dependency_unavailable"}});
   });
+  it("targets the namespaced Reserve API when using the shared Website Auth project",async()=>{
+    const f=vi.fn<typeof fetch>().mockResolvedValue(Response.json({state:"unconfigured",revision:0,settings:null}));
+    vi.stubGlobal("fetch",f);
+    const shared={VENI_ENV:"stg",VENI_ACCOUNT_MODE:"shared" as const,
+      SUPABASE_URL:"https://droslqfcazwkwvqlbtsq.supabase.co",SUPABASE_PUBLISHABLE_KEY:"sb_publishable_test"};
+    const request=new Request("https://reserve.test",{headers:{Authorization:auth}});
+    const response=await businessSettings(request,id,shared);
+    expect(response.status).toBe(200);
+    const [url,init]=f.mock.calls[0];
+    expect(String(url)).toBe(shared.SUPABASE_URL+"/rest/v1/rpc/reserve_read_tenant_business_settings");
+    expect(init?.headers).toEqual({"Content-Type":"application/json",apikey:shared.SUPABASE_PUBLISHABLE_KEY,Authorization:auth});
+  });
   it("lost response does not repeat a write",async()=>{
     const f=vi.fn().mockRejectedValue(new Error(auth));vi.stubGlobal("fetch",f);
     const r=await call(JSON.stringify(input));expect(r.status).toBe(503);expect(await r.json()).toEqual({error:{code:"dependency_unavailable"}});
