@@ -12,7 +12,7 @@
     "preview/**/*.ts",
     "preview/headers.mjs"
   ],
-  "exclude": ["tests/database/**", "tests/veni-oauth-client.test.mjs"],
+  "exclude": ["tests/database/**", "tests/veni-oauth-client.test.mjs", "tests/reserve-actor-contract.test.mjs"],
   "compilerOptions": {
     "composite": true,
     "strict": true,
