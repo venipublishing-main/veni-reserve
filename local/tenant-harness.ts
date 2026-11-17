@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Plugin } from "vite";
 import { businessSettings } from "../app/lib/business-settings.server";
+import { locationAttributes, locationList, locationSaveResult } from "../app/lib/locations";
 import { newThemeInput, savedThemeInput, themeRecord, themeSummaries, themeVersion } from "../app/lib/theme-revisions";
 import { guardEnvironment } from "../tests/database/ci.mjs";
 const origin = "http://127.0.0.1:5192", provider = "http://127.0.0.1:54321";
@@ -62,6 +63,20 @@ export function createLocalHandler(state: State) {
     if (object(value) && typeof value.error === "string" && Object.hasOwn(themeErrors, value.error))
       return reply({ error: value.error }, themeErrors[value.error]);
     return validate(value) ? reply(value, successStatus) : reply({ error: "theme_dependency_unavailable" }, 503);
+  }
+  async function locationCall(name: string, token: string, body: object,
+    validate: (data: unknown) => boolean, successStatus = 200) {
+    const response = await rpc(name, token, body);
+    if (!response.ok) return reply({ error: "location_dependency_unavailable" }, 503);
+    const value: unknown = await response.json();
+    if (object(value) && typeof value.error === "string") {
+      const codes: Record<string,number> = {
+        unauthorized: 403, tenant_unavailable: 404, location_unavailable: 404,
+        invalid_input: 422, revision_conflict: 409, duplicate_name: 409, dependency_unavailable: 503,
+      };
+      if (Object.hasOwn(codes,value.error)) return reply({ error: value.error }, codes[value.error]);
+    }
+    return validate(value) ? reply(value,successStatus) : reply({ error: "location_dependency_unavailable" }, 503);
   }
   return async (request: Request): Promise<Response> => {
     if (!localHarnessAllowed(request)) return reply({ error: "local_origin_required" }, 403);
@@ -122,6 +137,32 @@ export function createLocalHandler(state: State) {
         if (!(await tenants(token)).some(tenant => tenant.id === selected[1])) return reply({ error: "tenant_unavailable" }, 404);
         const forwarded = new Request(request, { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } });
         return businessSettings(forwarded, selected[1], { VENI_ENV: "dev", SUPABASE_URL: provider, SUPABASE_PUBLISHABLE_KEY: state.PUBLISHABLE_KEY });
+      }
+      const locationPath = /^\/tenants\/([a-f0-9-]{36})\/locations(?:\/([a-f0-9-]{36}))?$/.exec(path);
+      if (locationPath) {
+        const [,tenantId,locationId] = locationPath;
+        if (!uuid(tenantId) || (locationId && !uuid(locationId))) return reply({ error: "malformed_request" },400);
+        if (!(await tenants(token)).some(t => t.id === tenantId)) return reply({ error: "tenant_unavailable" },404);
+        if (!locationId && request.method === "GET")
+          return locationCall("list_tenant_locations",token,{ target: tenantId },locationList);
+        if (["POST","PUT"].includes(request.method) &&
+          ((request.method === "POST" && !locationId) || (request.method === "PUT" && !!locationId))) {
+          let input: unknown;
+          try { input = await request.json(); } catch { return reply({ error: "malformed_request" },400); }
+          if (!object(input) || Object.keys(input).length !== 2 ||
+            !Object.hasOwn(input,"expected_revision") || !Object.hasOwn(input,"attributes") ||
+            !Number.isInteger(input.expected_revision) ||
+            (input.expected_revision as number) < (locationId ? 1 : 0) ||
+            (input.expected_revision as number) > 2147483646 ||
+            (!locationId && input.expected_revision !== 0))
+            return reply({ error: "invalid_input" },422);
+          const attributes = locationAttributes(input.attributes);
+          if (!attributes || (!locationId && attributes.status === "ARCHIVED")) return reply({ error: "invalid_input" },422);
+          return locationCall("save_tenant_location",token,
+            { target:tenantId,location:locationId ?? null,expected:input.expected_revision,attributes },
+            locationSaveResult,locationId ? 200 : 201);
+        }
+        return reply({ error: "method_not_allowed" },405);
       }
       const themePath = /^\/tenants\/([a-f0-9-]{36})\/themes(?:\/([a-f0-9-]{36})(?:\/revisions\/([0-9]+))?)?$/.exec(path);
       if (themePath) {

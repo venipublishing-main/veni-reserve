@@ -125,6 +125,7 @@ async function hygiene() {
     (select count(*) from private.tenant_bootstrap_requests) + (select count(*) from private.tenant_business_settings) +
     (select count(*) from private.tenant_business_settings_changes) + (select count(*) from private.themes) +
     (select count(*) from private.theme_revisions) + (select count(*) from private.theme_revision_events) +
+    (select count(*) from private.locations) + (select count(*) from private.location_events) +
     (select count(*) from private.published_theme_assignments) + (select count(*) from public.roles where kind = 'CUSTOM');
     select count(*) from public.permissions;
     select count(*) from public.roles where kind = 'SYSTEM';
@@ -160,8 +161,8 @@ async function phase() {
       localGuard();
       requireSafe(capture("docker", ["exec", "-i", "supabase_db_veni-reserve", "psql", "-X", "-U", "postgres", "-d", "postgres", "-At", "-v", "ON_ERROR_STOP=1"], 30_000,
         "select version from supabase_migrations.schema_migrations order by version;").replaceAll("\r", "") ===
-        "20261030154642\n20261030174937\n20261031031256\n20261103160923\n20261113111616\n20261114110626", "Expected accepted migrations plus two local candidates were not reconstructed.");
-      console.log("Clean migration reconstruction: M1 / M2.1 / local Tenant bootstrap / private Theme revisions PASS");
+        "20261030154642\n20261030174937\n20261031031256\n20261103160923\n20261113111616\n20261114110626\n20261117121500", "Expected accepted migrations plus three local candidates were not reconstructed.");
+      console.log("Clean migration reconstruction: M1 / M2.1 / local Tenant bootstrap / Theme / Locations PASS");
       break;
     case "hygiene":
       await hygiene();
