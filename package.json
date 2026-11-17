@@ -11,6 +11,7 @@
     "lint": "eslint . --max-warnings 0",
     "test": "vitest run",
     "test:db": "node tests/database/run.mjs",
+    "test:shared-preview": "node --test tests/shared-account-m2-preview.test.mjs",
     "test:security": "node tests/database/security.mjs",
     "build:playground-preview": "node preview/build.mjs",
     "verify:playground-preview": "node preview/verify-artifact.mjs",

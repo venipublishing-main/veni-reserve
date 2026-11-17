@@ -10,7 +10,8 @@
     "worker-configuration.d.ts",
     "preview/**/*.tsx",
     "preview/**/*.ts",
-    "preview/headers.mjs"
+    "preview/headers.mjs",
+    "scripts/preview-shared-account-m2.mjs"
   ],
   "exclude": ["tests/database/**"],
   "compilerOptions": {
