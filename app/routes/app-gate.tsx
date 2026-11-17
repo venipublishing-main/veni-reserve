@@ -10,5 +10,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   return null;
 }
 export const headers = () => privateHeaders;
-export const action = ({ request }: LoaderFunctionArgs) => requireProductSession(request);
+export async function action({ request }: LoaderFunctionArgs) {
+  throw await requireProductSession(request);
+}
 export default function Workspace() { return <BusinessWorkspace />; }

@@ -11,6 +11,7 @@ export type AccountBindings = {
 };
 
 export function reserveAccount(request: Request, env: AccountBindings) {
+  if (import.meta.env.VENI_PREVIEW_BUILD) return null;
   const origin = new URL(request.url).origin;
   const local = import.meta.env.DEV && env.VENI_ENV === "dev" && origin === TEST_ORIGIN && env.SUPABASE_URL === TEST_PROVIDER;
   const staging = env.VENI_ENV === "stg" && origin === STAGING_ORIGIN && env.SUPABASE_URL === PRIMARY_PROVIDER;
