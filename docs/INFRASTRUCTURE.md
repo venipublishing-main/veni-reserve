@@ -55,9 +55,14 @@ Supabase connection at that milestone.
 
 M1.4 deployed the reviewed staging Worker. Hosted `/health` and `/ready` passed
 under AR-030. Future deployments require separate review and authorization.
-The explicit `stg` environment is selected at Vite build time. Its four public
-vars are `VENI_PRODUCT`, `VENI_ENV`, `SUPABASE_URL` and
-`SUPABASE_PUBLISHABLE_KEY`. The URL targets `opjgaepryqwmsohtajja.supabase.co`.
+The explicit `stg` environment is selected at Vite build time. Its original four
+public vars are `VENI_PRODUCT`, `VENI_ENV`, `SUPABASE_URL` and
+`SUPABASE_PUBLISHABLE_KEY`. The originally deployed Worker targets
+`opjgaepryqwmsohtajja.supabase.co`. The subsequent shared-account cutover
+configuration targets primary `droslqfcazwkwvqlbtsq.supabase.co` and sets
+`VENI_ACCOUNT_MODE=shared` to use the namespaced `public.reserve_*` API.
+This config change does not redeploy the existing Worker; its original
+environment remains live until a separate verified release.
 No elevated Supabase key is configured. DEV remains local-first without hosted
 Supabase bindings. `/health` remains process liveness; `/ready` checks Supabase
 Auth health with a bounded server-side request. No production resources, custom

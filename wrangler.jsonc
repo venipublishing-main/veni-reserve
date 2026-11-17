@@ -14,8 +14,9 @@
       "vars": {
         "VENI_PRODUCT": "reserve",
         "VENI_ENV": "stg",
-        "SUPABASE_URL": "https://opjgaepryqwmsohtajja.supabase.co",
-        "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_FTF4-pbZA0KhQY4DubTlXA_ELC_zC0K"
+        "VENI_ACCOUNT_MODE": "shared",
+        "SUPABASE_URL": "https://droslqfcazwkwvqlbtsq.supabase.co",
+        "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_v7dkG118DobqayECLngcbA_DUuO4ZAc"
       }
     },
     "app_preview": {

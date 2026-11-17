@@ -55,7 +55,8 @@ function reply(data: unknown, status: number, headers?: Record<string,string>) {
 const failure = (code: string,status: number) => reply({error:{code}},status);
 
 export async function businessSettings(request: Request, target: string, env: {
-  VENI_ENV: string; SUPABASE_URL?: string; SUPABASE_PUBLISHABLE_KEY?: string;
+  VENI_ENV: string; VENI_ACCOUNT_MODE?: "standalone" | "shared";
+  SUPABASE_URL?: string; SUPABASE_PUBLISHABLE_KEY?: string;
 }): Promise<Response> {
   if (!["GET","PUT"].includes(request.method)) return reply({error:{code:"method_not_allowed"}},405,{Allow:"GET, PUT"});
   if (!/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(target)) return failure("malformed_request",400);
@@ -72,7 +73,8 @@ export async function businessSettings(request: Request, target: string, env: {
     if ((!local && base.protocol !== "https:") || base.username || base.password || base.pathname !== "/" || base.search || base.hash ||
       !env.SUPABASE_PUBLISHABLE_KEY || !/^sb_publishable_[A-Za-z0-9_-]+$/.test(env.SUPABASE_PUBLISHABLE_KEY)) return failure("dependency_unavailable",503);
     timer = setTimeout(() => controller.abort(),5000);
-    const res = await fetch(new URL("/rest/v1/rpc/" + (save ? "save" : "read") + "_tenant_business_settings",base), {
+    const prefix = env.VENI_ACCOUNT_MODE === "shared" ? "reserve_" : "";
+    const res = await fetch(new URL("/rest/v1/rpc/" + prefix + (save ? "save" : "read") + "_tenant_business_settings",base), {
       method:"POST",redirect:"manual",signal:controller.signal,
       headers:{"Content-Type":"application/json",apikey:env.SUPABASE_PUBLISHABLE_KEY,Authorization:bearer},
       body:JSON.stringify({target,...input}),
