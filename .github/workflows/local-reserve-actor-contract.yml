@@ -1,0 +1,25 @@
+name: Local Reserve actor contract
+
+on:
+  pull_request:
+    paths:
+      - "app/lib/reserve-actor-contract.server.ts"
+      - "tests/reserve-actor-contract.test.mjs"
+      - "docs/engineering/veni-account-actor-compatibility-20261117.md"
+      - ".github/workflows/local-reserve-actor-contract.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  actor-deny-by-default:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Synthetic actor and existing OAuth boundary regression
+        run: node --experimental-strip-types --test tests/reserve-actor-contract.test.mjs tests/veni-oauth-client.test.mjs
