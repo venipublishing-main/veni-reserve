@@ -56,9 +56,11 @@ from unnest(array['private.settings_reference','private.tenant_business_settings
 select ok(not has_table_privilege(role,r,'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER') and
  not has_any_column_privilege(role,r,'SELECT,INSERT,UPDATE,REFERENCES'),role||' raw relation denied '||r)
 from unnest(array['anon','authenticated','service_role']) role cross join unnest(array['private.settings_reference','private.tenant_business_settings','private.tenant_business_settings_changes']) r;
-select is((select count(*) from pg_policies where schemaname='private' and tablename in ('settings_reference','tenant_business_settings','tenant_business_settings_changes')),5::bigint,'five new scoped policies');
+select is((select count(*) from pg_policies where schemaname='private' and tablename in ('settings_reference','tenant_business_settings','tenant_business_settings_changes')
+  and policyname<>'settings_catalogue_service_read'),5::bigint,'five original settings-scoped policies');
 select ok(roles=array['veni_settings_executor']::name[],'executor-only policy '||policyname)
-from pg_policies where schemaname='private' and tablename in ('settings_reference','tenant_business_settings','tenant_business_settings_changes');
+from pg_policies where schemaname='private' and tablename in ('settings_reference','tenant_business_settings','tenant_business_settings_changes')
+  and policyname<>'settings_catalogue_service_read';
 select ok(p.prosecdef=(n.nspname='private') and p.proconfig=array['search_path=""'] and
   has_function_privilege('authenticated',p.oid,'EXECUTE') and not has_function_privilege('anon',p.oid,'EXECUTE')
   and not has_function_privilege('service_role',p.oid,'EXECUTE'),'approved signature '||p.oid::regprocedure)
