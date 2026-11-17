@@ -13,6 +13,11 @@ const errors: Record<string,string> = {
   revision_conflict: "Someone saved this Location since you opened it. Reload it before continuing.",
   location_unavailable: "This Location was archived or is no longer editable.",
 };
+function editableFields(saved: SavedLocation): LocationAttributes {
+  return { name:saved.name,kind:saved.kind,description:saved.description,
+    timezone_override:saved.timezone_override,public_visible:saved.public_visible,
+    sort_order:saved.sort_order,status:saved.status };
+}
 
 export function LocalLocations({ tenantId }: { tenantId: string }) {
   const [items,setItems] = useState<SavedLocation[]>([]);
@@ -39,7 +44,7 @@ export function LocalLocations({ tenantId }: { tenantId: string }) {
     setItems(result.locations);
     if (chosen) {
       const match = result.locations.find(v => v.location_id === chosen);
-      if (match) { setDraft(match); setRevision(match.revision); }
+      if (match) { setDraft(editableFields(match)); setRevision(match.revision); }
     }
   }
   useEffect(() => {
@@ -51,7 +56,7 @@ export function LocalLocations({ tenantId }: { tenantId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[tenantId]);
   function select(location: SavedLocation) {
-    setChosen(location.location_id);setRevision(location.revision);setDraft(location);setMessage("");
+    setChosen(location.location_id);setRevision(location.revision);setDraft(editableFields(location));setMessage("");
   }
   function startNew() {
     setChosen(null);setRevision(0);setDraft({ ...blankLocation,sort_order:items.length });setMessage("");
@@ -66,7 +71,7 @@ export function LocalLocations({ tenantId }: { tenantId: string }) {
         { expected_revision:revision,attributes:valid });
       const saved = result.locations.find(v => v.location_id === result.location_id);
       if (!saved) throw new Error("Saved but the Location could not be read back.");
-      setItems(result.locations);setChosen(saved.location_id);setRevision(saved.revision);setDraft(saved);
+      setItems(result.locations);setChosen(saved.location_id);setRevision(saved.revision);setDraft(editableFields(saved));
       setMessage(saved.status === "ARCHIVED"
         ? "Location archived. Its identity is retained for historical bookings."
         : "Location saved to local PostgreSQL (revision " + saved.revision + ").");
