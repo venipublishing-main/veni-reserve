@@ -223,3 +223,76 @@ test("rejects every provider 3xx response without following a redirect", async (
     assert.ok(!cookieValue(response, "vr_local_oauth_session"));
   }
 });
+
+// Independent Veni Account integration audit: these are adversarial, MOCKED
+// identity-boundary checks. They are not evidence of a separate Website issuer,
+// cross-project PostgREST acceptance, or a production Reserve membership gate.
+test("rejects wrong OAuth callback issuer and another tab's transaction cookie before token exchange", async () => {
+  const { client, calls } = mockClient();
+  const one = await initiate(client);
+  const two = await initiate(client);
+  const callback = new URL("/auth/veni/callback", LOCAL_APP_ORIGIN);
+  callback.searchParams.set("code", "synthetic-once-only-code-123456");
+  callback.searchParams.set("state", one.loc.searchParams.get("state"));
+  callback.searchParams.set("iss", "https://unrelated-issuer.invalid/auth/v1");
+  assert.equal((await client.callback(new Request(callback, {
+    headers: { Cookie: one.transactionCookie }
+  }))).status, 400);
+  callback.searchParams.set("iss", `${LOCAL_SUPABASE_ORIGIN}/auth/v1`);
+  assert.equal((await client.callback(new Request(callback, {
+    headers: { Cookie: two.transactionCookie }
+  }))).status, 400);
+  assert.equal(calls.length, 0, "no token exchange for issuer or tab mismatch");
+});
+
+test("matching email and forged Owner metadata never turn a different subject into a Reserve actor", async () => {
+  const tenant = "cccccccc-dddd-4eee-8fff-000000000000";
+  const unrelated = "dddddddd-eeee-4fff-8000-111111111111";
+  const forged = makeToken({ tenant_id: tenant, role_name: "Owner",
+    user_metadata: { reserve_tenant_id: tenant, reserve_role: "Owner", email: "same@example.invalid" },
+    app_metadata: { reserve_tenant_id: tenant, reserve_role: "Owner" } });
+
+  const differentIdentity = mockClient({ token: forged, userId: unrelated, liveId: unrelated });
+  const denied = await finish(differentIdentity.client, await initiate(differentIdentity.client));
+  assert.equal(denied.status, 503, "a shared email does not overcome a mismatched subject");
+  assert.ok(!cookieValue(denied, "vr_local_oauth_session"));
+
+  const correctIdentity = mockClient({ token: forged });
+  const connected = await finish(correctIdentity.client, await initiate(correctIdentity.client));
+  assert.equal(connected.status, 303, "verified identity alone can establish the local account preview");
+  const session = cookieValue(connected, "vr_local_oauth_session");
+  const response = await correctIdentity.client.status(request("/development/veni-account", [session]));
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.equal(data.subject, USER);
+  assert.equal(data.productAccess, "not_granted");
+  assert.ok(!("tenant_id" in data) && !("role" in data), "no forged Tenant or Owner authority in response");
+});
+
+test("an authorization-code replay fails only when the provider enforces its one-use grant", async () => {
+  // Deliberately reuse the old encrypted transaction cookie: the client has no
+  // distributed replay ledger; OAuth's issuing server MUST reject a spent code.
+  let exchanges = 0;
+  const token = makeToken();
+  const fetcher = async url => {
+    const path = new URL(url).pathname;
+    if (path === "/auth/v1/oauth/token") {
+      exchanges++;
+      return exchanges === 1 ? json({ access_token: token, token_type: "bearer" }) :
+        json({ error: "invalid_grant" }, 400);
+    }
+    if (path === "/auth/v1/user") return json({ id: USER });
+    if (path === "/rest/v1/rpc/current_reserve_user") return json(USER);
+    throw Error("Unexpected mock provider path");
+  };
+  const client = createLocalVeniOAuth(BASE, { fetcher, clock: () => NOW });
+  const transaction = await initiate(client);
+  const first = await finish(client, transaction);
+  assert.equal(first.status, 303);
+  assert.ok(cookieValue(first, "vr_local_oauth_session"));
+  const replay = await finish(client, transaction);
+  assert.equal(replay.status, 503);
+  assert.equal(exchanges, 2);
+  assert.ok(!cookieValue(replay, "vr_local_oauth_session"));
+  assert.ok(cookieValue(replay, "vr_local_oauth_transaction"), "replay response clears transaction");
+});
