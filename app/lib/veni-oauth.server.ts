@@ -120,14 +120,11 @@ export function createReserveOAuth(config: ReserveOAuthConfig, { fetcher = fetch
     const u = new URL(request.url);
     return u.origin === config.appOrigin && request.method === "GET";
   }
-  function fetchProvider(path: string, init: RequestInit) {
-    return fetcher(`${config.providerOrigin}${path}`, { ...init,
+  async function providerRequest(path: string, init: RequestInit) {
+    const response = await fetcher(`${config.providerOrigin}${path}`, { ...init,
       // Never follow a provider redirect. Manual mode works in the local Worker
       // runtime; every 3xx is rejected below alongside other non-2xx statuses.
       redirect: "manual", signal: AbortSignal.timeout(5000) });
-  }
-  async function providerRequest(path: string, init: RequestInit) {
-    const response = await fetchProvider(path, init);
     if (!response.ok) throw new Error("provider rejected");
     return response;
   }
@@ -235,24 +232,10 @@ export function createReserveOAuth(config: ReserveOAuthConfig, { fetcher = fetch
       return { id: verified.subject, token: session.token };
     } catch { return null; }
   }
-  async function signOut(request: Request) {
+  function signOut(request: Request) {
     if (new URL(request.url).origin !== config.appOrigin || request.method !== "POST" ||
         request.headers.get("origin") !== config.appOrigin) return fail(403);
-    // The sealed session identifies the token to revoke. An unavailable
-    // identity lookup must never be mistaken for successful revocation.
-    const session = await sessionFromCookie(request);
-    if (session) {
-      try {
-        const response = await fetchProvider("/auth/v1/logout?scope=local", { method: "POST",
-          headers: { apikey: config.publishableKey, Authorization: "Bearer " + session.token } });
-        if (!response.ok) {
-          if (response.status !== 401 && response.status !== 403) return fail(503);
-          const { error_code } = await response.json() as { error_code?: string };
-          if (error_code !== "session_not_found" && error_code !== "user_not_found" &&
-              error_code !== "session_expired") return fail(503);
-        }
-      } catch { return fail(503); }
-    }
+    // Browser-only sign-out. Veni Account settings manage the provider grant.
     const receiptName = (secure ? "__Host-" : "") + "vr_setup_request";
     return redirect("/", [cookie(SESSION, "", 0), cookie(TX, "", 0), cookie(receiptName, "", 0)]);
   }
