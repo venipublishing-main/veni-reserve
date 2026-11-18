@@ -39,7 +39,8 @@ export function BusinessWorkspace({ local = false, children }: { local?: boolean
   return <SiteShell><h1 className="text-3xl font-semibold">{local ? "Local persistent Business setup" : "Business setup"}</h1>
     {children}
     {!session ? local ? <div className="flex gap-3">{["A", "B"].map(fixture => <button key={fixture} className={button} disabled={busy || !loaded} onClick={() => void perform(async () => { await api("/signin", "POST", { fixture }); setSelected(""); await refresh(); })}>Sign in as synthetic User {fixture}</button>)}</div> : <p>{loaded && <a href="/login">Sign in with Veni Account</a>}</p> : <>
-      <p>Signed in as <code>{session.user.id}</code></p><button className={button} disabled={busy} onClick={() => void perform(signOut)}>Sign out and revoke this session</button>
+      <p>Signed in as <code>{session.user.id}</code></p><button className={button} disabled={busy} onClick={() => void perform(signOut)}>{local ? "Sign out" : "Sign out of this browser"}</button>
+      {!local && <a className="underline" href="https://venipublishing.co.za/account/settings/#connected-applications">Disconnect Reserve staging on all devices</a>}
       <h2 className="text-xl font-semibold">Authorized businesses</h2>
       <div className="flex flex-wrap gap-3">{session.tenants.map(t => <button className={button} disabled={busy} key={t.id} onClick={() => void perform(() => select(t.id))}>{t.display_name ?? "Unconfigured business"} · {t.status} · {t.id.slice(0, 8)}</button>)}</div>
       {!session.tenants.length && <p>No authorized businesses yet.</p>}

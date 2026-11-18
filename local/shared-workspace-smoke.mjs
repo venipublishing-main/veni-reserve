@@ -112,7 +112,10 @@ try {
   assert.equal(logout.status, 303);
   assert.ok(logout.headers.getSetCookie().some(value =>
     value.startsWith('vr_setup_request=;') && value.includes('Max-Age=0')));
-  assert.equal((await call(a, 'session')).status, 401);
+  // This action expires the browser cookies. Provider-wide disconnection is
+  // tested separately with the Website session and the actual OAuth grant.
+  assert.equal((await local('/api/workspace/session')).status, 401);
+  assert.equal((await call(a, 'session')).status, 200);
   globalThis.console.log('PASS shared Worker OAuth, verified sessions, tenant bootstrap/retry, settings and all private catalogues');
 } finally {
   server?.kill();
