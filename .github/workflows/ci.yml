@@ -136,3 +136,38 @@ jobs:
         if: ${{ always() }}
         run: node tests/database/ci.mjs stop
         timeout-minutes: 2
+
+  shared-onboarding:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      SUPABASE_EXPERIMENTAL_STACK: "0"
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Check out the primary project's reviewed Reserve baseline
+        uses: actions/checkout@v4
+        with:
+          repository: venipublishing-main/venipublishing-website
+          ref: aac1382f41dfb1e7bb8bf11d5ee1f74a6700d274
+          path: .tmp/website
+          persist-credentials: false
+      - name: Replay primary schema and onboarding candidate in an isolated local stack
+        run: |
+          set -euo pipefail
+          stack="$RUNNER_TEMP/reserve-onboarding"
+          mkdir -p "$stack/supabase/migrations"
+          cp tests/shared-stack/supabase/config.toml "$stack/supabase/"
+          baseline=(.tmp/website/supabase/migrations/20261117*_reserve_shared_*.sql)
+          test "${#baseline[@]}" -eq 9
+          cp "${baseline[@]}" integration/veni-publishing/supabase/migrations/*.sql "$stack/supabase/migrations/"
+          pnpm exec supabase start --workdir "$stack" -x realtime,storage-api,imgproxy,studio,postgres-meta,mailpit,edge-runtime,logflare,vector,supavisor > /dev/null
+          node local/shared-workspace-smoke.mjs "$stack"
+      - if: always()
+        run: pnpm exec supabase stop --workdir "$RUNNER_TEMP/reserve-onboarding" --no-backup

@@ -1,3 +1,4 @@
+import { validDetails, validReview } from "./business-onboarding";
 import { businessSettings } from "./business-settings.server";
 import { locationAttributes, locationList, locationSaveResult } from "./locations";
 import { serviceAttributes, serviceList, serviceSaveResult } from "./services";
@@ -106,6 +107,38 @@ export async function tenantWorkspace(request: Request, path: string, user: { id
     const forwarded = new Request(request, { headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` } });
     return businessSettings(forwarded, selected[1], settingsEnv);
   }
+  const onboarding = /^\/tenants\/([a-f0-9-]{36})\/onboarding(\/activation)?$/.exec(path);
+  if (onboarding && settingsEnv.VENI_ACCOUNT_MODE === "shared") {
+    const [, target, activation] = onboarding;
+    if (!uuid(target)) return reply({ error: "malformed_request" }, 400);
+    let name = "read_business_onboarding";
+    let body: object = { target };
+    if (request.method === (activation ? "POST" : "PUT")) {
+      let input: unknown;
+      try { input = await request.json(); } catch { return reply({ error: "malformed_request" }, 400); }
+      if (!object(input)) return reply({ error: "invalid_input" }, 422);
+      if (activation) {
+        if (Object.keys(input).length !== 1 || typeof input.review_key !== "string" || !/^[0-9a-f]{32}$/.test(input.review_key))
+          return reply({ error: "invalid_input" }, 422);
+        name = "activate_business_onboarding";
+        body = { target, review_key: input.review_key };
+      } else {
+        if (Object.keys(input).length !== 2 || typeof input.expected_revision !== "number" ||
+            !Number.isInteger(input.expected_revision) || input.expected_revision < 0 || input.expected_revision > 2147483646 ||
+            !validDetails(input.details)) return reply({ error: "invalid_input" }, 422);
+        name = "save_business_onboarding";
+        body = { target, expected: input.expected_revision, details: input.details };
+      }
+    } else if (activation || request.method !== "GET") return reply({ error: "method_not_allowed" }, 405);
+    const res = await rpc(name, token, body);
+    const data: unknown = await res.json();
+    if (object(data) && data.code === "40001") return reply({ error: "revision_conflict" }, 409);
+    if (res.ok && validReview(data)) return reply(data);
+    const errors: Record<string,number> = { tenant_unavailable: 404, revision_conflict: 409, incomplete: 422, invalid_input: 422 };
+    if (res.ok && object(data) && typeof data.error === "string" && Object.hasOwn(errors, data.error))
+      return reply({ error: data.error }, errors[data.error]);
+    return reply({ error: "dependency_unavailable" }, 503);
+  }
   const locationPath = /^\/tenants\/([a-f0-9-]{36})\/locations(?:\/([a-f0-9-]{36}))?$/.exec(path);
   if (locationPath) {
     const [,tenantId,locationId] = locationPath;
@@ -151,6 +184,12 @@ export async function tenantWorkspace(request: Request, path: string, user: { id
         (!serviceId&&input.expected_revision!==0))return reply({error:"invalid_input"},422);
       const attributes=serviceAttributes(input.attributes);
       if(!attributes||(!serviceId&&attributes.status==="ARCHIVED"))return reply({error:"invalid_input"},422);
+      const requestKey = request.headers.get("Idempotency-Key");
+      if (!serviceId && settingsEnv.VENI_ACCOUNT_MODE === "shared") {
+        if (!uuid(requestKey)) return reply({ error: "invalid_input" }, 422);
+        return serviceCall("create_catalogue_item", token,
+          { target: tenantId, kind: "service", request_key: requestKey, attributes }, serviceSaveResult, 201);
+      }
       return serviceCall("save_tenant_service",token,
         {target:tenantId,service:serviceId??null,expected:input.expected_revision,attributes},
         serviceSaveResult,serviceId?200:201);
@@ -177,6 +216,12 @@ export async function tenantWorkspace(request: Request, path: string, user: { id
       const attributes=staffAttributes(input.attributes);
       if(!attributes||(!staffId&&attributes.status==="ARCHIVED"))
         return reply({error:"invalid_input"},422);
+      const requestKey = request.headers.get("Idempotency-Key");
+      if (!staffId && settingsEnv.VENI_ACCOUNT_MODE === "shared") {
+        if (!uuid(requestKey)) return reply({ error: "invalid_input" }, 422);
+        return staffCall("create_catalogue_item", token,
+          { target: tenantId, kind: "staff", request_key: requestKey, attributes }, staffSaveResult, 201);
+      }
       return staffCall("save_tenant_staff",token,
         {target:tenantId,staff:staffId??null,expected:input.expected_revision,attributes},
         staffSaveResult,staffId?200:201);

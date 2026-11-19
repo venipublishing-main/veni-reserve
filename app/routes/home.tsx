@@ -8,13 +8,13 @@ export default function Home() {
     <h1 className="max-w-3xl text-4xl font-semibold leading-tight sm:text-5xl">Your booking system.<br />Your brand. Your rules.</h1>
     <p className="max-w-2xl text-lg">Set up a business, shape its booking experience and manage your team's appointments in one product.</p>
     <div className="flex flex-wrap gap-4"><Link className={linkClass} to="/playground">Try Playground</Link><Link className={linkClass} to="/signup">Create my business</Link><Link className={linkClass} to="/login">Sign in</Link></div>
-    <p>Playground is optional and simulated. Registration is not open yet. Neither route creates a business today.</p>
+    <p>Playground is optional and simulated. Sign in with Veni Account to set up your business where shared account access is enabled.</p>
     <section className="rounded-2xl border border-slate-200 bg-white p-6"><h2 className="text-2xl font-semibold">From setup to your workspace</h2>
       <ol className="mt-4 grid list-inside list-decimal gap-3 sm:grid-cols-3">{setupSteps.map(step => <li key={step}>{step}</li>)}</ol>
       <p className="mt-5">Your business will stay private during setup. Publishing will require validated settings and booking readiness.</p>
     </section>
     <section aria-labelledby="product-entry-title" className="space-y-3"><h2 id="product-entry-title" className="text-2xl font-semibold">Business and booking entry</h2>
-      <p>Business setup requires the pending Veni Account connection. Public business booking is not launched on this candidate.</p>
+      <p>Use your Veni Account to open a saved business draft. Public booking will open separately.</p>
       <div className="flex flex-wrap gap-4"><Link className={linkClass} to="/app/onboarding">Business setup</Link><Link className={linkClass} to="/book/unpublished">Public booking entry — not launched</Link></div>
     </section>
     <p>Already exploring? You can choose Create my business at any time. Fictional Playground people, bookings and logos are never imported automatically.</p>

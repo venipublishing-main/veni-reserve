@@ -13,8 +13,9 @@ const provider = 'http://127.0.0.1:56321';
 const app = 'http://127.0.0.1:5193';
 const callback = app + '/auth/veni/callback';
 const stack = process.argv[2];
-assert.ok(stack && readFileSync(resolve(stack, 'supabase/config.toml'), 'utf8')
-  .includes('project_id = "veni_consolidation_1117"'), 'Use the isolated consolidation stack');
+const config = readFileSync(resolve(stack, 'supabase/config.toml'), 'utf8');
+const onboarding = config.includes('project_id = "reserve_onboarding_test"');
+assert.ok(onboarding || config.includes('project_id = "veni_consolidation_1117"'), 'Use a disposable shared stack');
 const cli = resolve('node_modules/supabase/dist/supabase.js');
 const state = JSON.parse(execFileSync(process.execPath, [cli, 'status', '--workdir', resolve(stack), '-o', 'json'],
   { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
@@ -63,8 +64,8 @@ try {
     try { if ((await local('/health')).ok) break; } catch { /* Server is starting. */ }
     await delay(1000);
   }
-  async function signIn() {
-    const user = await ok(await auth('/auth/v1/signup', { method: 'POST', headers: json,
+  async function signIn(existing) {
+    const user = existing ?? await ok(await auth('/auth/v1/signup', { method: 'POST', headers: json,
       body: JSON.stringify({ email: randomUUID() + '@example.invalid', password: randomUUID() + 'aB!' }) }), 'sign up');
     const login = await local('/login');
     assert.equal(login.status, 302);
@@ -77,10 +78,14 @@ try {
     const endpoint = '/auth/v1/oauth/authorizations/' + encodeURIComponent(id);
     const headers = { ...json, Authorization: 'Bearer ' + user.access_token };
     const details = await ok(await auth(endpoint, { headers }), 'consent details');
-    assert.equal(details.client.id, client.client_id);
-    assert.equal(details.redirect_uri, callback);
-    const decision = await ok(await auth(endpoint + '/consent', { method: 'POST', headers,
-      body: JSON.stringify({ action: 'approve' }) }), 'consent');
+    let decision = details;
+    if (!existing || !details.redirect_url) {
+      assert.equal(details.client.id, client.client_id);
+      assert.equal(details.redirect_uri, callback);
+      decision = await ok(await auth(endpoint + '/consent', { method: 'POST', headers,
+        body: JSON.stringify({ action: 'approve' }) }), 'consent');
+    }
+    assert.equal(new URL(decision.redirect_url).origin + new URL(decision.redirect_url).pathname, callback);
     const finish = await local(decision.redirect_url, { headers: { Cookie: transaction } });
     assert.equal(finish.status, 303, 'verified callback');
     assert.equal(finish.headers.get('location'), '/app');
@@ -89,12 +94,12 @@ try {
     const r = await local('/api/workspace/session', { headers: { Cookie: session } });
     const info = await ok(r, 'workspace identity');
     assert.deepEqual(info.user, { id: user.user.id });
-    assert.deepEqual(info.tenants, []);
-    return { cookies: session + '; ' + cookie(r, 'vr_setup_request'), key: info.request_key };
+    if (!existing) assert.deepEqual(info.tenants, []);
+    return { cookies: session + '; ' + cookie(r, 'vr_setup_request'), key: info.request_key, id: user.user.id, token: user.access_token };
   }
   const a = await signIn(), b = await signIn();
-  const call = (actor, path, method = 'GET', body) => local('/api/workspace/' + path, {
-    method, headers: { ...json, Cookie: actor.cookies, Origin: app },
+  const call = (actor, path, method = 'GET', body, extraHeaders) => local('/api/workspace/' + path, {
+    method, headers: { ...json, Cookie: actor.cookies, Origin: app, ...extraHeaders },
     body: body === undefined ? undefined : JSON.stringify(body) });
   const create = () => call(a, 'bootstrap', 'POST', { request_key: a.key });
   const tenant = await ok(await create(), 'create');
@@ -107,6 +112,11 @@ try {
   for (const name of ['settings', 'themes', 'locations', 'services', 'staff', 'eligibility']) {
     assert.equal((await call(a, prefix + name)).status, 200, name);
     assert.equal((await call(b, prefix + name)).status, 404, name + ' tenant boundary');
+  }
+  if (onboarding) {
+    const { verifyOnboarding } = await import('./shared-onboarding-smoke.mjs');
+    await verifyOnboarding({ a, b, tenant: tenant.tenant_id, call, ok, auth,
+      resume: () => signIn({ user: { id: a.id }, access_token: a.token }) });
   }
   const logout = await call(a, 'logout', 'POST');
   assert.equal(logout.status, 303);
