@@ -11,6 +11,7 @@
     "stg": {
       "name": "vf-reserve-stg",
       "workers_dev": true,
+      "preview_urls": false,
       "vars": {
         "VENI_PRODUCT": "reserve",
         "VENI_ENV": "stg",
