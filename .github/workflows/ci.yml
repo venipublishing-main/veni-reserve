@@ -158,16 +158,28 @@ jobs:
           ref: aac1382f41dfb1e7bb8bf11d5ee1f74a6700d274
           path: .tmp/website
           persist-credentials: false
+      - name: Check out the shared Arcana baseline
+        uses: actions/checkout@v4
+        with:
+          repository: venipublishing-main/venipublishing-website-preview
+          ref: ae1c4929ce8d8aaa954eacfe9b4494bfb2924301
+          path: .tmp/website-preview
+          persist-credentials: false
       - name: Replay primary schema and onboarding candidate in an isolated local stack
         run: |
           set -euo pipefail
           stack="$RUNNER_TEMP/reserve-onboarding"
           mkdir -p "$stack/supabase/migrations"
           cp tests/shared-stack/supabase/config.toml "$stack/supabase/"
+          # Website's historical bootstrap predates the ledger. Load it first in the test fixture.
+          cp .tmp/website/supabase/migrations/20260903_001_veni_account_foundation.sql "$stack/supabase/migrations/20260903070000_fixture_account_foundation.sql"
+          cp .tmp/website/supabase/migrations/20260903071048_revoke_handle_new_user_rpc_access.sql "$stack/supabase/migrations/"
+          cp .tmp/website-preview/supabase/migrations/20260903072229_arcana_stage3_pilot_foundation.sql "$stack/supabase/migrations/"
           baseline=(.tmp/website/supabase/migrations/20261117*_reserve_shared_*.sql)
           test "${#baseline[@]}" -eq 9
           cp "${baseline[@]}" integration/veni-publishing/supabase/migrations/*.sql "$stack/supabase/migrations/"
           pnpm exec supabase start --workdir "$stack" -x realtime,storage-api,imgproxy,studio,postgres-meta,mailpit,edge-runtime,logflare,vector,supavisor > /dev/null
           node local/shared-workspace-smoke.mjs "$stack"
+          pnpm exec supabase db advisors --local --workdir "$stack" --type security --level warn --fail-on error
       - if: always()
         run: pnpm exec supabase stop --workdir "$RUNNER_TEMP/reserve-onboarding" --no-backup

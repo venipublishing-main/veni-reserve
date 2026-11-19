@@ -20,8 +20,8 @@ export type OnboardingReview = {
   revision: number;
   summary: { business: string | null; timezone: string | null; locations: string[]; services: {name: string; minutes: number}[]; staff: string[] };
   checks: Record<keyof typeof checkLabels, boolean>;
-  status: "draft" | "pending_entitlement" | "activated";
-  entitled: boolean;
+  status: "draft" | "pending_entitlement" | "activated" | "verification_required";
+  entitled: boolean | null;
   review_key: string;
 };
 const object = (value: unknown): value is Record<string, unknown> =>
@@ -47,8 +47,9 @@ export function validReview(value: unknown): value is OnboardingReview {
     (summary.timezone === null || typeof summary.timezone === "string") && names(summary.locations) && names(summary.staff) &&
     Array.isArray(summary.services) && summary.services.every(s => object(s) && typeof s.name === "string" && integer(s.minutes, 1, 10080)) &&
     integer(value.revision, 0, 2147483647) && (value.revision === 0 ? value.details === null : validDetails(value.details)) &&
-    typeof value.review_key === "string" && /^[0-9a-f]{32}$/.test(value.review_key) && typeof value.entitled === "boolean" &&
-    ["draft","pending_entitlement","activated"].includes(String(value.status)) &&
+    typeof value.review_key === "string" && /^[0-9a-f]{32}$/.test(value.review_key) && (value.entitled === null || typeof value.entitled === "boolean") &&
+    ["draft","pending_entitlement","activated","verification_required"].includes(String(value.status)) &&
     Object.keys(checkLabels).every(key => typeof checks[key] === "boolean") &&
-    (value.status !== "activated" || (value.entitled && Object.values(checks).every(v => v === true)));
+    (value.status !== "verification_required" || value.entitled === null) &&
+    (value.status !== "activated" || (value.entitled === true && Object.values(checks).every(v => v === true)));
 }

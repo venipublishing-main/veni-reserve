@@ -13,6 +13,8 @@ async function requestReview(url: string, method = "GET", body?: object) {
     if (response.status === 404 || response.status === 403) throw new Error("Only an active business owner can manage this onboarding draft.");
     if (response.status === 401) throw new Error("Sign in again to continue.");
     if (response.status === 422) throw new Error("Check the contact details, opening times and booking window.");
+    if (response.status === 503 && url.endsWith("/activation"))
+      throw new Error("Activation could not be confirmed. Reload the saved review before trying again.");
     throw new Error("Could not confirm the database result. Reload the saved draft before retrying.");
   }
   const data: unknown = await response.json();
@@ -101,12 +103,12 @@ export function OnboardingReview({ tenantId, onActivation }: { tenantId: string;
       </dl>
       <ul>{(Object.keys(checkLabels) as Array<keyof typeof checkLabels>).map(key =>
         <li key={key}>{review.checks[key] ? "Complete" : "Needed"} · {checkLabels[key]}</li>)}</ul>
-      <p>Saved status · {review.status === "activated" ? "Active" : review.status === "pending_entitlement" ? "Pending Veni Account entitlement" : "Draft"}</p>
-      <p>{review.entitled ? "Veni Account has authorised Reserve activation." : "Veni Account must confirm a subscription or authorised free pilot. You can save your setup in the meantime."}</p>
+      <p>Saved status · {review.status === "verification_required" ? "Awaiting entitlement verification" : review.status === "activated" ? "Active" : review.status === "pending_entitlement" ? "Pending Veni Account entitlement" : "Draft"}</p>
+      <p>{review.entitled === null ? "Veni Account eligibility could not be verified. You can continue saving this draft and reload the review to try again." : review.entitled ? "Veni Account has authorised Reserve activation." : "Veni Account must confirm a subscription or authorised free pilot. You can save your setup in the meantime."}</p>
     </>}
     <div className="flex flex-wrap gap-3">
       <button type="button" className={button} disabled={busy} onClick={() => void run("reload")}>{dirty ? "Discard edits and reload saved review" : "Reload saved review"}</button>
-      {review && <button type="button" className={button} disabled={busy || dirty || !Object.values(review.checks).every(Boolean) ||
+      {review && <button type="button" className={button} disabled={busy || dirty || review.entitled === null || !Object.values(review.checks).every(Boolean) ||
         review.status === "activated" || (review.status === "pending_entitlement" && !review.entitled)} onClick={() => void run("activate")}>
         {review.entitled ? "Activate business" : "Request activation"}</button>}
     </div>

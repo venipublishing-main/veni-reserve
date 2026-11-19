@@ -1,5 +1,33 @@
 -- Candidate for the Website-owned primary migration ledger, after the nine shared Reserve migrations.
 begin;
+-- Account provisions exact confidential client UUIDs here in the release transaction.
+-- No application role can classify a client. A deleted client fails the live Auth join.
+create table reserve_internal.oauth_clients (client_id uuid primary key);
+alter table reserve_internal.oauth_clients enable row level security;
+revoke all on reserve_internal.oauth_clients from public, anon, authenticated, service_role;
+
+-- Reuse the existing postgres-owned, argument-free identity verifier. Its existing
+-- EXECUTE grants and ownership stay intact. Only the current subject UUID can leave it.
+create or replace function reserve_internal.authenticated_session_user() returns uuid
+language sql stable security definer set search_path = '' as $$
+  select u.id from auth.users u
+  join auth.sessions s on s.user_id = u.id
+  join reserve_internal.oauth_clients r on r.client_id = s.oauth_client_id
+  join auth.oauth_clients c on c.id = r.client_id and c.deleted_at is null and c.client_type = 'confidential'
+  where u.id = auth.uid() and auth.jwt()->>'role' = 'authenticated'
+    and auth.jwt()->'is_anonymous' = 'false'::jsonb and not u.is_anonymous
+    and s.id::text = auth.jwt()->>'session_id' and c.id::text = auth.jwt()->>'client_id'
+    and (s.not_after is null or s.not_after > statement_timestamp())
+    and (u.banned_until is null or u.banned_until <= statement_timestamp()) and u.deleted_at is null
+    and exists (select from auth.oauth_consents g where g.user_id = u.id
+      and g.client_id = c.id and g.revoked_at is null)
+$$;
+-- Older RLS policies and internal settings/catalogue helpers also use this identity.
+create or replace function reserve_internal.business_user_id() returns uuid
+language sql stable security invoker set search_path = '' as $$
+  select reserve_internal.authenticated_session_user()
+$$;
+
 create role reserve_onboarding_executor nologin noinherit nobypassrls;
 grant reserve_onboarding_executor to postgres;
 -- The catalogue functions belong to dedicated roles. Scope these grantor memberships to this transaction.
@@ -96,7 +124,7 @@ language plpgsql stable security definer set search_path = '' as $$
 declare
   saved reserve_internal.business_onboarding;
   profile jsonb; locations jsonb; services jsonb; staff jsonb; links jsonb;
-  checks jsonb; linked boolean; entitled boolean; phase text;
+  checks jsonb; linked boolean; phase text;
 begin
   if not reserve_internal.onboarding_owner(target) then return '{"error":"tenant_unavailable"}'; end if;
   select * into saved from reserve_internal.business_onboarding where tenant_id = target;
@@ -126,15 +154,12 @@ begin
     'location',jsonb_path_exists(locations,'$[*] ? (@.status == "ACTIVE")'),
     'service',jsonb_path_exists(services,'$[*] ? (@.status == "ACTIVE")'),
     'staff',jsonb_path_exists(staff,'$[*] ? (@.status == "ACTIVE")'), 'eligibility',linked);
-  select exists(select from reserve_internal.account_publish_entitlement(target) e
-    where e.business_id = target and e.product = 'reserve' and e.capability = 'publish'
-      and e.basis in ('subscription','free_pilot') and e.revoked_at is null
-      and e.valid_from <= statement_timestamp() and statement_timestamp() < e.expires_at) into entitled;
-  phase := coalesce(saved.decision,'draft');
-  if phase = 'activated' and not entitled then phase := 'pending_entitlement'; end if;
+  -- Historical activation is never proof of a current grant.
+  phase := case when saved.decision = 'activated' then 'verification_required'
+    else coalesce(saved.decision,'draft') end;
   if exists(select from jsonb_each(checks) where value = 'false') then phase := 'draft'; end if;
   return jsonb_build_object('details',saved.details,'revision',coalesce(saved.revision,0),
-    'status',phase,'entitled',entitled,'checks',checks,
+    'status',phase,'entitled',null,'checks',checks,
     'summary',jsonb_build_object('business',profile->'settings'->'display_name','timezone',profile->'settings'->'timezone',
       'locations',jsonb_path_query_array(locations,'$[*] ? (@.status == "ACTIVE").name'),
       'services',coalesce((select jsonb_agg(jsonb_build_object('name',v->'name','minutes',v->'duration_minutes') order by v->>'name',v->>'service_id')
@@ -163,15 +188,42 @@ begin
   if saved ? 'error' then raise exception 'Cannot verify saved onboarding'; end if;
   return saved;
 end $$;
+-- This is the only Account-dependent read. Evaluate it separately from draft I/O.
+create function reserve_internal.read_publish_entitlement(target uuid) returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare started timestamptz; approved boolean;
+begin
+  if not reserve_internal.onboarding_owner(target) then return '{"error":"tenant_unavailable"}'; end if;
+  started := clock_timestamp();
+  begin
+    select exists(
+      select from reserve_internal.account_publish_entitlement(target) e
+      where e.business_id = target and e.product = 'reserve' and e.capability = 'publish'
+        and e.basis in ('subscription','free_pilot') and e.revoked_at is null
+        and e.valid_from <= clock_timestamp() and clock_timestamp() < e.expires_at) into approved;
+  exception when query_canceled or others then
+    -- Only errors inside the Account adapter map to unknown. Owner and session
+    -- checks above retain their own failure semantics, including during an outage.
+    return '{"error":"entitlement_unavailable"}';
+  end;
+  -- Bound a late positive even if the transport cannot cancel the database query.
+  if clock_timestamp() - started >= interval '1500 milliseconds' then
+    return '{"error":"entitlement_unavailable"}';
+  end if;
+  return jsonb_build_object('entitled', approved);
+end $$;
+
 create function reserve_internal.activate_business_onboarding(target uuid, review_key text) returns jsonb
 language plpgsql volatile security definer set search_path = '' as $$
-declare review jsonb; next_decision text;
+declare review jsonb; entitlement jsonb; next_decision text;
 begin
   review := reserve_internal.read_business_onboarding(target);
   if review ? 'error' then return review; end if;
   if review->>'review_key' is distinct from review_key then return '{"error":"revision_conflict"}'; end if;
   if exists(select from jsonb_each(review->'checks') where value = 'false') then return '{"error":"incomplete"}'; end if;
-  next_decision := case when review->'entitled' = 'true' then 'activated' else 'pending_entitlement' end;
+  entitlement := reserve_internal.read_publish_entitlement(target);
+  if entitlement ? 'error' then return entitlement; end if;
+  next_decision := case when entitlement->'entitled' = 'true' then 'activated' else 'pending_entitlement' end;
   update reserve_internal.business_onboarding set decision = next_decision, revision = revision+1,
     updated_at = now(), updated_by = reserve_internal.authenticated_session_user()
     where tenant_id = target and decision <> next_decision;
@@ -181,15 +233,18 @@ begin
   end if;
   review := reserve_internal.read_business_onboarding(target);
   if review ? 'error' then raise exception 'Cannot verify activation decision'; end if;
-  return review;
+  return review || entitlement || jsonb_build_object('status',next_decision);
 end $$;
 
 create function public.reserve_read_business_onboarding(target uuid) returns jsonb
 language sql stable security invoker set search_path = '' as $$ select reserve_internal.read_business_onboarding(target) $$;
+create function public.reserve_read_publish_entitlement(target uuid) returns jsonb
+language sql stable security invoker set search_path = '' set statement_timeout = '1500ms'
+as $$ select reserve_internal.read_publish_entitlement(target) $$;
 create function public.reserve_save_business_onboarding(target uuid, expected integer, details jsonb) returns jsonb
 language sql volatile security invoker set search_path = '' as $$ select reserve_internal.save_business_onboarding(target,expected,details) $$;
 create function public.reserve_activate_business_onboarding(target uuid, review_key text) returns jsonb
-language sql volatile security invoker set search_path = '' set default_transaction_isolation = 'serializable'
+language sql volatile security invoker set search_path = '' set default_transaction_isolation = 'serializable' set statement_timeout = '3500ms'
 as $$ select reserve_internal.activate_business_onboarding(target,review_key) $$;
 
 -- Service and practitioner names need not be unique. Bind a logical create to one actor and payload.
@@ -240,6 +295,7 @@ create function public.reserve_create_catalogue_item(target uuid,kind text,reque
 language sql volatile security invoker set search_path = '' as $$ select reserve_internal.create_catalogue_item(target,kind,request_key,attributes) $$;
 
 grant create on schema reserve_internal to reserve_onboarding_executor;
+alter function reserve_internal.read_publish_entitlement(uuid) owner to reserve_onboarding_executor;
 alter function reserve_internal.read_business_onboarding(uuid) owner to reserve_onboarding_executor;
 alter function reserve_internal.save_business_onboarding(uuid,integer,jsonb) owner to reserve_onboarding_executor;
 alter function reserve_internal.activate_business_onboarding(uuid,text) owner to reserve_onboarding_executor;
@@ -249,12 +305,14 @@ revoke all on function reserve_internal.onboarding_owner(uuid), reserve_internal
   reserve_internal.account_publish_entitlement(uuid) from public,anon,authenticated,service_role;
 grant execute on function reserve_internal.onboarding_owner(uuid), reserve_internal.valid_onboarding_details(jsonb),
   reserve_internal.account_publish_entitlement(uuid) to reserve_onboarding_executor;
-revoke all on function reserve_internal.read_business_onboarding(uuid), reserve_internal.save_business_onboarding(uuid,integer,jsonb),
+revoke all on function reserve_internal.read_publish_entitlement(uuid), public.reserve_read_publish_entitlement(uuid),
+  reserve_internal.read_business_onboarding(uuid), reserve_internal.save_business_onboarding(uuid,integer,jsonb),
   reserve_internal.activate_business_onboarding(uuid,text), reserve_internal.create_catalogue_item(uuid,text,uuid,jsonb),
   public.reserve_read_business_onboarding(uuid), public.reserve_save_business_onboarding(uuid,integer,jsonb),
   public.reserve_activate_business_onboarding(uuid,text), public.reserve_create_catalogue_item(uuid,text,uuid,jsonb)
   from public,anon,authenticated,service_role;
-grant execute on function reserve_internal.read_business_onboarding(uuid), reserve_internal.save_business_onboarding(uuid,integer,jsonb),
+grant execute on function reserve_internal.read_publish_entitlement(uuid), public.reserve_read_publish_entitlement(uuid),
+  reserve_internal.read_business_onboarding(uuid), reserve_internal.save_business_onboarding(uuid,integer,jsonb),
   reserve_internal.activate_business_onboarding(uuid,text), reserve_internal.create_catalogue_item(uuid,text,uuid,jsonb),
   public.reserve_read_business_onboarding(uuid), public.reserve_save_business_onboarding(uuid,integer,jsonb),
   public.reserve_activate_business_onboarding(uuid,text), public.reserve_create_catalogue_item(uuid,text,uuid,jsonb) to authenticated;

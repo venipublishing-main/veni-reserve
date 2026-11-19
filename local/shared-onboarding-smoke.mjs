@@ -28,7 +28,7 @@ export async function verifyOnboarding({ a, b, tenant, call, ok, auth, resume })
   assert.equal((await activate(a, persisted)).status, 422);
   assert.equal((await activate(b, persisted)).status, 404);
   const rpc = (actor, name, body) => auth('/rest/v1/rpc/reserve_' + name, { method:'POST',
-    headers:{ 'Content-Type':'application/json', ...(actor && {Authorization:'Bearer ' + actor.token}) }, body:JSON.stringify(body) });
+    headers:{ 'Content-Type':'application/json', ...(actor && {Authorization:'Bearer ' + actor.reserveToken}) }, body:JSON.stringify(body) });
   assert.ok(!(await rpc(null, 'read_business_onboarding', {target:tenant})).ok);
   assert.deepEqual(await (await rpc(b, 'activate_business_onboarding', {target:tenant,review_key:persisted.review_key})).json(),
     {error:'tenant_unavailable'});
@@ -73,6 +73,43 @@ export async function verifyOnboarding({ a, b, tenant, call, ok, auth, resume })
       now()+interval '${start}',now()+interval '${end}',${revoked} $$;`);
   }
   try {
+    const installFailure = body => sql(`create or replace function reserve_internal.account_publish_entitlement(target uuid)
+      returns table(business_id uuid, product text, capability text, basis text, valid_from timestamptz, expires_at timestamptz, revoked_at timestamptz)
+      language plpgsql stable security invoker set search_path='' as $$ begin ${body}; end $$`);
+    const outages = [
+      ["exception", "raise exception 'synthetic Account error'"],
+      ["upstream credentials unavailable", "raise sqlstate 'PT403' using message='synthetic upstream credentials error'"],
+      ["bad gateway", "raise sqlstate 'PT502' using message='synthetic upstream failure'"],
+      ["unavailable", "raise sqlstate 'PT503' using message='synthetic unavailable'"],
+      ["timeout", "perform pg_sleep(2.5); return query select target,'reserve'::text,'publish'::text,'free_pilot'::text,now()-interval '1 day',now()+interval '1 day',null::timestamptz"],
+    ];
+    let revision = pending.revision;
+    for (const [label, failure] of outages) {
+      installFailure(failure);
+      const unknown = await read();
+      assert.equal(unknown.entitled,null,label);
+      const changed = {...details, email:label.replaceAll(' ','-')+'@example.invalid'};
+      const saved = await ok(await save(a,revision,changed),'save during '+label);
+      assert.deepEqual(saved.details,changed);
+      assert.equal(saved.entitled,null);
+      assert.equal(saved.revision,revision+1);
+      revision = saved.revision;
+      const fresh = await resume();
+      const resumed = await ok(await call(fresh,prefix+'onboarding'),'resume during '+label);
+      assert.deepEqual(resumed,saved);
+      assert.equal((await activate(a,unknown)).status,409);
+      assert.equal((await activate(a,saved)).status,503);
+      assert.equal(sql(`select status from reserve.tenants where id='${tenant}'`),'SETUP');
+      assert.equal((await call(b,prefix+'onboarding')).status,404);
+      assert.deepEqual(await (await rpc({reserveToken:a.token},'read_business_onboarding',{target:tenant})).json(),{error:'tenant_unavailable'});
+      const replay = await ok(await create('services',serviceAttrs,key),'receipt during '+label);
+      assert.equal(replay.service_id, first.service_id);
+      assert.equal(replay.services.length, 1);
+    }
+    fixture(tenant,'-1 day','-1 hour');
+    const recovered = await read();
+    assert.equal(recovered.entitled,false);
+    assert.equal((await ok(await activate(a,recovered),'request after recovery')).status,'pending_entitlement');
     fixture(tenant, '-1 day','-1 hour');
     assert.equal((await read()).entitled,false);
     fixture(tenant, '1 hour','1 day');
@@ -101,4 +138,5 @@ export async function verifyOnboarding({ a, b, tenant, call, ok, auth, resume })
     assert.equal(sql("select has_table_privilege('authenticated','reserve_internal.business_onboarding','UPDATE') or has_function_privilege('authenticated','reserve_internal.account_publish_entitlement(uuid)','EXECUTE')"),'f');
   } finally { sql(original); }
   globalThis.console.log('PASS shared DB owner, draft resume, atomic catalogue retry, cross-tenant and staff denial, pending/expired/revoked/free-pilot activation');
+  return {key,attributes:serviceAttrs};
 }

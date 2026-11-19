@@ -40,7 +40,7 @@ export async function loader({ request, params }: LoaderFunctionArgs) {
     }
     return await tenantWorkspace(request, path, { id: session.id }, session.token, key, receipt, env,
       (name, token, body = {}) => fetch(env.SUPABASE_URL + "/rest/v1/rpc/reserve_" + name, {
-        method: "POST", redirect: "manual", signal: AbortSignal.timeout(5000),
+        method: "POST", redirect: "manual", signal: AbortSignal.timeout(name === "read_publish_entitlement" ? 1800 : 5000),
         headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY!, Authorization: "Bearer " + token, "Content-Type": "application/json" },
         body: JSON.stringify(body) }));
   } catch { return error("dependency_unavailable", 503); }

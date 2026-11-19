@@ -1,5 +1,6 @@
 // Run against a disposable Website + Reserve stack after all nine migrations.
 // All test credentials are generated here and stay on the local machine.
+import { authorizeClient, verifyClientBoundary } from './onboarding-oauth.mjs';
 import { URL } from 'node:url';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
@@ -46,11 +47,20 @@ const ok = async (r, label) => {
   }
   return r.json();
 };
-let server, client, ownsVars = false;
+let server, client, sibling, ownsVars = false;
 try {
   client = await ok(await auth(clientPath, { method: 'POST', headers: admin,
     body: JSON.stringify({ name: 'Disposable Reserve ' + randomUUID(), redirect_uris: [callback],
       client_type: 'confidential', token_endpoint_auth_method: 'client_secret_basic' }) }), 'register');
+  const sql = statement => execFileSync('docker',['exec','-i','supabase_db_reserve_onboarding_test','psql',
+    '-XAtq','-v','ON_ERROR_STOP=1','-U','postgres'],{input:statement,encoding:'utf8'}).trim();
+  if (onboarding) {
+    assert.match(client.client_id,/^[0-9a-f-]{36}$/);
+    sql("insert into reserve_internal.oauth_clients values ('"+client.client_id+"')");
+    sibling = await ok(await auth(clientPath,{method:'POST',headers:admin,body:JSON.stringify({
+      name:'Synthetic sibling '+randomUUID(),redirect_uris:[callback],client_type:'confidential',
+      token_endpoint_auth_method:'client_secret_basic'})}),'register sibling');
+  }
   const vars = { SUPABASE_URL: provider, SUPABASE_PUBLISHABLE_KEY: state.PUBLISHABLE_KEY,
     VENI_ACCOUNT_MODE: 'shared', VENI_OAUTH_CLIENT_ID: client.client_id,
     VENI_OAUTH_CLIENT_SECRET: client.client_secret, VENI_OAUTH_COOKIE_KEY: randomBytes(32).toString('base64url') };
@@ -113,10 +123,15 @@ try {
     assert.equal((await call(a, prefix + name)).status, 200, name);
     assert.equal((await call(b, prefix + name)).status, 404, name + ' tenant boundary');
   }
+  let checkBoundary;
   if (onboarding) {
     const { verifyOnboarding } = await import('./shared-onboarding-smoke.mjs');
-    await verifyOnboarding({ a, b, tenant: tenant.tenant_id, call, ok, auth,
+    const direct = await authorizeClient({auth,ok,client,token:a.token,callback});
+    a.reserveToken = direct.access;
+    b.reserveToken = (await authorizeClient({auth,ok,client,token:b.token,callback})).access;
+    const receipt = await verifyOnboarding({ a, b, tenant: tenant.tenant_id, call, ok, auth,
       resume: () => signIn({ user: { id: a.id }, access_token: a.token }) });
+    checkBoundary = () => verifyClientBoundary({auth,ok,client,sibling,owner:a,direct,tenant:tenant.tenant_id,...receipt,sql,callback});
   }
   const logout = await call(a, 'logout', 'POST');
   assert.equal(logout.status, 303);
@@ -126,9 +141,11 @@ try {
   // tested separately with the Website session and the actual OAuth grant.
   assert.equal((await local('/api/workspace/session')).status, 401);
   assert.equal((await call(a, 'session')).status, 200);
+  if (checkBoundary) { await checkBoundary(); globalThis.console.log('PASS direct Reserve OAuth, Website and sibling denial, terminated session and revoked consent'); }
   globalThis.console.log('PASS shared Worker OAuth, verified sessions, tenant bootstrap/retry, settings and all private catalogues');
 } finally {
   server?.kill();
   if (ownsVars) unlinkSync('.dev.vars');
+  if (sibling?.client_id) await auth(clientPath + '/' + sibling.client_id, { method: 'DELETE', headers: admin });
   if (client?.client_id) await auth(clientPath + '/' + client.client_id, { method: 'DELETE', headers: admin });
 }

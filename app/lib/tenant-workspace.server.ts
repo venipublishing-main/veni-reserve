@@ -133,8 +133,24 @@ export async function tenantWorkspace(request: Request, path: string, user: { id
     const res = await rpc(name, token, body);
     const data: unknown = await res.json();
     if (object(data) && data.code === "40001") return reply({ error: "revision_conflict" }, 409);
-    if (res.ok && validReview(data)) return reply(data);
-    const errors: Record<string,number> = { tenant_unavailable: 404, revision_conflict: 409, incomplete: 422, invalid_input: 422 };
+    if (res.ok && validReview(data)) {
+      if (activation) return reply(data);
+      if (data.entitled !== null) return reply({ error: "dependency_unavailable" }, 503);
+      // The authorised draft transaction is complete. Only this optional, independent
+      // read can degrade to unknown. A subsequent permission denial still denies access.
+      try {
+        const result = await rpc("read_publish_entitlement", token, { target });
+        if (result.status === 401 || result.status === 403) return reply({ error: "unauthorized" }, result.status);
+        if (!result.ok) return reply(data);
+        const decision: unknown = await result.json();
+        if (object(decision) && decision.error === "tenant_unavailable") return reply(decision, 404);
+        if (!object(decision) || Object.keys(decision).length !== 1 || typeof decision.entitled !== "boolean") return reply(data);
+        const status = data.status === "verification_required"
+          ? (decision.entitled ? "activated" : "pending_entitlement") : data.status;
+        return reply({ ...data, entitled: decision.entitled, status });
+      } catch { return reply(data); }
+    }
+    const errors: Record<string,number> = { tenant_unavailable: 404, revision_conflict: 409, incomplete: 422, invalid_input: 422, entitlement_unavailable: 503 };
     if (res.ok && object(data) && typeof data.error === "string" && Object.hasOwn(errors, data.error))
       return reply({ error: data.error }, errors[data.error]);
     return reply({ error: "dependency_unavailable" }, 503);
