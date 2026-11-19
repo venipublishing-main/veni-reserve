@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect,useRef, useState } from "react";
 import { blankService,currencyDigits,editableService,formatPriceMinor,parsePriceMinor,
   serviceAttributes } from "../../lib/services";
 import type { SavedService,ServiceAttributes,ServiceList,ServiceSaveResult } from "../../lib/services";
@@ -21,10 +21,16 @@ export function LocalServices({tenantId,defaultCurrency,apiBase}:{tenantId:strin
   const [busy,setBusy]=useState(false),[ready,setReady]=useState(false),[message,setMessage]=useState("");
   const currency=draft.currency_override??defaultCurrency;
   const digits=currencyDigits(currency);
+  const createKey = useRef<string | null>(null);
   async function api<T>(method="GET",serviceId?:string,body?:unknown):Promise<T>{
+    const headers = new Headers({ "Content-Type": "application/json" });
+    if (apiBase === "/api/workspace" && method === "POST") {
+      createKey.current ??= crypto.randomUUID();
+      headers.set("Idempotency-Key", createKey.current);
+    }
     const response=await fetch(`${apiBase}/tenants/${tenantId}/services`+
       (serviceId?`/${serviceId}`:""),{
-      method,headers:{"Content-Type":"application/json"},
+      method, headers,
       body:body===undefined?undefined:JSON.stringify(body),
     });
     let payload:unknown;
@@ -41,6 +47,7 @@ export function LocalServices({tenantId,defaultCurrency,apiBase}:{tenantId:strin
     setMessage("");
   }
   function startNew(){
+    createKey.current = null;
     setChosen(null);setRevision(0);setDraft({...blankService,sort_order:items.length});
     setPriceText("");setMessage("");
   }

@@ -1,4 +1,4 @@
-import { useEffect,useState } from "react";
+import { useEffect,useRef,useState } from "react";
 import { blankStaff,editableStaff,staffAttributes,blankEligibility,editableEligibility,
   eligibilityAttributes,structuralCandidates } from "../../lib/staff";
 import type { StaffAttributes,SavedStaff,StaffList,StaffSaveResult,EligibilityAttributes,
@@ -29,9 +29,15 @@ export function LocalStaff({tenantId,defaultCurrency,apiBase}:Props){
   const [linkDraft,setLinkDraft]=useState<EligibilityAttributes>(blankEligibility("STAFF_SERVICE"));
   const [priceText,setPriceText]=useState("");
   const [ready,setReady]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState("");
+  const createKey = useRef<string | null>(null);
   async function api<T>(path:string,method="GET",body?:unknown):Promise<T>{
+    const headers = new Headers({ "Content-Type": "application/json" });
+    if (apiBase === "/api/workspace" && path === "staff" && method === "POST") {
+      createKey.current ??= crypto.randomUUID();
+      headers.set("Idempotency-Key", createKey.current);
+    }
     const response=await fetch(`${apiBase}/tenants/${tenantId}/${path}`,{
-      method,headers:{"Content-Type":"application/json"},
+      method, headers,
       body:body===undefined?undefined:JSON.stringify(body),
     });
     let payload:unknown;
@@ -68,6 +74,7 @@ export function LocalStaff({tenantId,defaultCurrency,apiBase}:Props){
     setChosenStaff(s.staff_id);setStaffRevision(s.revision);setDraft(editableStaff(s));setMessage("");
   }
   function newStaff(){
+    createKey.current = null;
     setChosenStaff(null);setStaffRevision(0);setDraft({...blankStaff,sort_order:staff.length});
     setMessage("");
   }

@@ -1,0 +1,22 @@
+# Isolated Worker + primary-schema integration fixture.
+project_id = "reserve_onboarding_test"
+
+[api]
+port = 56321
+schemas = ["public", "reserve"]
+
+[db]
+port = 56322
+shadow_port = 56320
+major_version = 17
+
+[auth]
+site_url = "http://127.0.0.1:5193"
+enable_anonymous_sign_ins = false
+[auth.email]
+enable_confirmations = false
+[auth.oauth_server]
+enabled = true
+authorization_url_path = "/oauth/consent"
+[analytics]
+enabled = false

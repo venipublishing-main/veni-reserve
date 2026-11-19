@@ -1,5 +1,6 @@
 // Run against a disposable Website + Reserve stack after all nine migrations.
 // All test credentials are generated here and stay on the local machine.
+import { authorizeClient, verifyClientBoundary } from './onboarding-oauth.mjs';
 import { URL } from 'node:url';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
@@ -13,8 +14,9 @@ const provider = 'http://127.0.0.1:56321';
 const app = 'http://127.0.0.1:5193';
 const callback = app + '/auth/veni/callback';
 const stack = process.argv[2];
-assert.ok(stack && readFileSync(resolve(stack, 'supabase/config.toml'), 'utf8')
-  .includes('project_id = "veni_consolidation_1117"'), 'Use the isolated consolidation stack');
+const config = readFileSync(resolve(stack, 'supabase/config.toml'), 'utf8');
+const onboarding = config.includes('project_id = "reserve_onboarding_test"');
+assert.ok(onboarding || config.includes('project_id = "veni_consolidation_1117"'), 'Use a disposable shared stack');
 const cli = resolve('node_modules/supabase/dist/supabase.js');
 const state = JSON.parse(execFileSync(process.execPath, [cli, 'status', '--workdir', resolve(stack), '-o', 'json'],
   { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }));
@@ -45,11 +47,20 @@ const ok = async (r, label) => {
   }
   return r.json();
 };
-let server, client, ownsVars = false;
+let server, client, sibling, ownsVars = false;
 try {
   client = await ok(await auth(clientPath, { method: 'POST', headers: admin,
     body: JSON.stringify({ name: 'Disposable Reserve ' + randomUUID(), redirect_uris: [callback],
       client_type: 'confidential', token_endpoint_auth_method: 'client_secret_basic' }) }), 'register');
+  const sql = statement => execFileSync('docker',['exec','-i','supabase_db_reserve_onboarding_test','psql',
+    '-XAtq','-v','ON_ERROR_STOP=1','-U','postgres'],{input:statement,encoding:'utf8'}).trim();
+  if (onboarding) {
+    assert.match(client.client_id,/^[0-9a-f-]{36}$/);
+    sql("insert into reserve_internal.oauth_clients values ('"+client.client_id+"')");
+    sibling = await ok(await auth(clientPath,{method:'POST',headers:admin,body:JSON.stringify({
+      name:'Synthetic sibling '+randomUUID(),redirect_uris:[callback],client_type:'confidential',
+      token_endpoint_auth_method:'client_secret_basic'})}),'register sibling');
+  }
   const vars = { SUPABASE_URL: provider, SUPABASE_PUBLISHABLE_KEY: state.PUBLISHABLE_KEY,
     VENI_ACCOUNT_MODE: 'shared', VENI_OAUTH_CLIENT_ID: client.client_id,
     VENI_OAUTH_CLIENT_SECRET: client.client_secret, VENI_OAUTH_COOKIE_KEY: randomBytes(32).toString('base64url') };
@@ -63,8 +74,8 @@ try {
     try { if ((await local('/health')).ok) break; } catch { /* Server is starting. */ }
     await delay(1000);
   }
-  async function signIn() {
-    const user = await ok(await auth('/auth/v1/signup', { method: 'POST', headers: json,
+  async function signIn(existing) {
+    const user = existing ?? await ok(await auth('/auth/v1/signup', { method: 'POST', headers: json,
       body: JSON.stringify({ email: randomUUID() + '@example.invalid', password: randomUUID() + 'aB!' }) }), 'sign up');
     const login = await local('/login');
     assert.equal(login.status, 302);
@@ -77,10 +88,14 @@ try {
     const endpoint = '/auth/v1/oauth/authorizations/' + encodeURIComponent(id);
     const headers = { ...json, Authorization: 'Bearer ' + user.access_token };
     const details = await ok(await auth(endpoint, { headers }), 'consent details');
-    assert.equal(details.client.id, client.client_id);
-    assert.equal(details.redirect_uri, callback);
-    const decision = await ok(await auth(endpoint + '/consent', { method: 'POST', headers,
-      body: JSON.stringify({ action: 'approve' }) }), 'consent');
+    let decision = details;
+    if (!existing || !details.redirect_url) {
+      assert.equal(details.client.id, client.client_id);
+      assert.equal(details.redirect_uri, callback);
+      decision = await ok(await auth(endpoint + '/consent', { method: 'POST', headers,
+        body: JSON.stringify({ action: 'approve' }) }), 'consent');
+    }
+    assert.equal(new URL(decision.redirect_url).origin + new URL(decision.redirect_url).pathname, callback);
     const finish = await local(decision.redirect_url, { headers: { Cookie: transaction } });
     assert.equal(finish.status, 303, 'verified callback');
     assert.equal(finish.headers.get('location'), '/app');
@@ -89,12 +104,12 @@ try {
     const r = await local('/api/workspace/session', { headers: { Cookie: session } });
     const info = await ok(r, 'workspace identity');
     assert.deepEqual(info.user, { id: user.user.id });
-    assert.deepEqual(info.tenants, []);
-    return { cookies: session + '; ' + cookie(r, 'vr_setup_request'), key: info.request_key };
+    if (!existing) assert.deepEqual(info.tenants, []);
+    return { cookies: session + '; ' + cookie(r, 'vr_setup_request'), key: info.request_key, id: user.user.id, token: user.access_token };
   }
   const a = await signIn(), b = await signIn();
-  const call = (actor, path, method = 'GET', body) => local('/api/workspace/' + path, {
-    method, headers: { ...json, Cookie: actor.cookies, Origin: app },
+  const call = (actor, path, method = 'GET', body, extraHeaders) => local('/api/workspace/' + path, {
+    method, headers: { ...json, Cookie: actor.cookies, Origin: app, ...extraHeaders },
     body: body === undefined ? undefined : JSON.stringify(body) });
   const create = () => call(a, 'bootstrap', 'POST', { request_key: a.key });
   const tenant = await ok(await create(), 'create');
@@ -108,6 +123,16 @@ try {
     assert.equal((await call(a, prefix + name)).status, 200, name);
     assert.equal((await call(b, prefix + name)).status, 404, name + ' tenant boundary');
   }
+  let checkBoundary;
+  if (onboarding) {
+    const { verifyOnboarding } = await import('./shared-onboarding-smoke.mjs');
+    const direct = await authorizeClient({auth,ok,client,token:a.token,callback});
+    a.reserveToken = direct.access;
+    b.reserveToken = (await authorizeClient({auth,ok,client,token:b.token,callback})).access;
+    const receipt = await verifyOnboarding({ a, b, tenant: tenant.tenant_id, call, ok, auth,
+      resume: () => signIn({ user: { id: a.id }, access_token: a.token }) });
+    checkBoundary = () => verifyClientBoundary({auth,ok,client,sibling,owner:a,direct,tenant:tenant.tenant_id,...receipt,sql,callback});
+  }
   const logout = await call(a, 'logout', 'POST');
   assert.equal(logout.status, 303);
   assert.ok(logout.headers.getSetCookie().some(value =>
@@ -116,9 +141,11 @@ try {
   // tested separately with the Website session and the actual OAuth grant.
   assert.equal((await local('/api/workspace/session')).status, 401);
   assert.equal((await call(a, 'session')).status, 200);
+  if (checkBoundary) { await checkBoundary(); globalThis.console.log('PASS direct Reserve OAuth, Website and sibling denial, terminated session and revoked consent'); }
   globalThis.console.log('PASS shared Worker OAuth, verified sessions, tenant bootstrap/retry, settings and all private catalogues');
 } finally {
   server?.kill();
   if (ownsVars) unlinkSync('.dev.vars');
+  if (sibling?.client_id) await auth(clientPath + '/' + sibling.client_id, { method: 'DELETE', headers: admin });
   if (client?.client_id) await auth(clientPath + '/' + client.client_id, { method: 'DELETE', headers: admin });
 }

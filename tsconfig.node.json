@@ -10,6 +10,7 @@
     "app/lib/business-settings.server.ts",
     "app/lib/tenant-workspace.server.ts",
     "app/lib/business-settings.ts",
+    "app/lib/business-onboarding.ts",
     "app/lib/theme-revisions.ts",
     "app/lib/locations.ts",
     "app/lib/services.ts",

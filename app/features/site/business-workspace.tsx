@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { OnboardingReview } from "./onboarding-review";
 import { SiteShell } from "./shell";
 import { LocalThemeStudio } from "./local-theme-studio";
 import { LocalLocations } from "./local-locations";
@@ -9,6 +10,8 @@ type Profile = { display_name: string; timezone: string; default_locale: string;
 const defaults: Profile = { display_name: "", timezone: "Africa/Johannesburg", default_locale: "en-ZA", default_currency: "ZAR", terminology: {} };
 const button = "rounded border border-slate-500 px-4 py-2 disabled:opacity-50";
 export function BusinessWorkspace({ local = false, children }: { local?: boolean; children?: React.ReactNode }) {
+  const sections = ["Profile", "Locations", "Services", "Staff and eligibility", "Hours and activation", "Theme"] as const;
+  const [section, setSection] = useState<typeof sections[number]>("Profile");
   const apiBase = local ? "/development/local-api" : "/api/workspace";
   const [session, setSession] = useState<{ user: { id: string }; tenants: Tenant[]; request_key: string } | null>(null);
   const [selected, setSelected] = useState(""), [profile, setProfile] = useState(local ? { ...defaults, display_name: "Fictional local business" } : defaults), [revision, setRevision] = useState(0);
@@ -34,7 +37,7 @@ export function BusinessWorkspace({ local = false, children }: { local?: boolean
     }
   }
   async function select(id: string) {
-    const value = await api<{ settings: Profile | null; revision: number }>(`/tenants/${id}/settings`); setSelected(id); setProfile(value.settings ?? defaults); setRevision(value.revision);
+    const value = await api<{ settings: Profile | null; revision: number }>(`/tenants/${id}/settings`); if (selected !== id) setSection("Profile"); setSelected(id); setProfile(value.settings ?? defaults); setRevision(value.revision);
   }
   return <SiteShell><h1 className="text-3xl font-semibold">{local ? "Local persistent Business setup" : "Business setup"}</h1>
     {children}
@@ -44,20 +47,26 @@ export function BusinessWorkspace({ local = false, children }: { local?: boolean
       <h2 className="text-xl font-semibold">Authorized businesses</h2>
       <div className="flex flex-wrap gap-3">{session.tenants.map(t => <button className={button} disabled={busy} key={t.id} onClick={() => void perform(() => select(t.id))}>{t.display_name ?? "Unconfigured business"} · {t.status} · {t.id.slice(0, 8)}</button>)}</div>
       {!session.tenants.length && <p>No authorized businesses yet.</p>}
-      <div className="flex flex-wrap gap-3"><button className={button} disabled={busy} onClick={() => void perform(async () => { const value = await api<{ tenant_id: string; replayed: boolean }>("/bootstrap", "POST", { request_key: session.request_key }); await refresh(); await select(value.tenant_id); setMessage(value.replayed ? "Existing creation recovered; no duplicate business." : "SETUP Tenant and active Owner committed atomically."); })}>Create / safely retry current business</button>
-      <button className={button} disabled={busy} onClick={() => void perform(async () => { await api("/new-request", "POST"); await refresh(); setMessage("New creation request prepared. Use Create when you intend a separate business."); })}>Prepare a separate new business</button></div>
-      {selected && <form className="max-w-xl space-y-3" onSubmit={e => { e.preventDefault(); void perform(async () => { const value = await api<{ settings: Profile; revision: number }>(`/tenants/${selected}/settings`, "PUT", { expected_revision: revision, settings: profile }); setProfile(value.settings); setRevision(value.revision); await refresh(); setMessage(`Saved business settings, revision ${value.revision}.`); }); }}>
-        <h2 className="text-xl font-semibold">Canonical Business settings — revision {revision}</h2>
+      <div className="flex flex-wrap gap-3"><button className={button} disabled={busy} onClick={() => void perform(async () => { const value = await api<{ tenant_id: string; replayed: boolean }>("/bootstrap", "POST", { request_key: session.request_key }); await refresh(); await select(value.tenant_id); setMessage(value.replayed ? "Existing creation recovered; no duplicate business." : "Business created. You are its owner."); })}>Create business</button>
+      <button className={button} disabled={busy} onClick={() => void perform(async () => { await api("/new-request", "POST"); await refresh(); setMessage("New creation request prepared. Use Create when you intend a separate business."); })}>Start another business request</button></div>
+      {!local && selected && revision > 0 && <nav aria-label="Business setup sections" className="flex flex-wrap gap-2">
+        {sections.map(name => <button className={button} type="button" key={name} aria-pressed={name === section}
+          disabled={busy} onClick={() => setSection(name)}>{name}</button>)}
+      </nav>}
+      {selected && (local || section === "Profile") && <form className="max-w-xl space-y-3" onSubmit={e => { e.preventDefault(); void perform(async () => { const value = await api<{ settings: Profile; revision: number }>(`/tenants/${selected}/settings`, "PUT", { expected_revision: revision, settings: profile }); setProfile(value.settings); setRevision(value.revision); await refresh(); setMessage(`Saved business settings, revision ${value.revision}.`); }); }}>
+        <h2 className="text-xl font-semibold">Business profile — revision {revision}</h2>
         {(["display_name", "timezone", "default_locale", "default_currency"] as const).map(key => <label className="block" key={key}>{key.replaceAll("_", " ")}<input required maxLength={key === "display_name" ? 120 : 80} className="block w-full rounded border p-2" value={profile[key]} onChange={e => setProfile({ ...profile, [key]: e.target.value })} /></label>)}
         {(["singular", "plural"] as const).map(key => <label className="block" key={key}>Staff term ({key}, optional)<input className="block w-full rounded border p-2" value={profile.terminology.staff_member?.[key] ?? ""} onChange={e => { const pair = { singular: "", plural: "", ...profile.terminology.staff_member, [key]: e.target.value }; setProfile({ ...profile, terminology: pair.singular || pair.plural ? { staff_member: pair } : {} }); }} /></label>)}
         <button disabled={busy} className={button}>Save business settings</button> <button type="button" disabled={busy} className={button} onClick={() => void perform(() => select(selected))}>Reload saved settings / discard edits</button>
       </form>}
     </>}
     <p role="status" aria-live="polite">{message}</p>
-    {session && selected && revision > 0 && <LocalLocations key={selected + "-Locations"} apiBase={apiBase} tenantId={selected} />}
-    {session && selected && revision > 0 && <LocalServices key={selected + "-Services"} apiBase={apiBase} tenantId={selected} defaultCurrency={profile.default_currency} />}
-    {session && selected && revision > 0 && <LocalStaff key={selected + "-Staff"} apiBase={apiBase} tenantId={selected} defaultCurrency={profile.default_currency} />}
-    {session && selected && revision > 0 && <LocalThemeStudio key={selected + "-ThemeStudio"} apiBase={apiBase} tenantId={selected} />}
+    {session && selected && revision > 0 && (local || section === "Locations") && <LocalLocations key={selected + "-Locations"} apiBase={apiBase} tenantId={selected} />}
+    {session && selected && revision > 0 && (local || section === "Services") && <LocalServices key={selected + "-Services"} apiBase={apiBase} tenantId={selected} defaultCurrency={profile.default_currency} />}
+    {session && selected && revision > 0 && (local || section === "Staff and eligibility") && <LocalStaff key={selected + "-Staff"} apiBase={apiBase} tenantId={selected} defaultCurrency={profile.default_currency} />}
+    {session && selected && revision > 0 && (local || section === "Theme") && <LocalThemeStudio key={selected + "-ThemeStudio"} apiBase={apiBase} tenantId={selected} />}
 
+    {!local && session && selected && section === "Hours and activation" &&
+      <OnboardingReview key={selected} tenantId={selected} onActivation={refresh} />}
   </SiteShell>;
 }
