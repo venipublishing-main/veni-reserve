@@ -187,7 +187,7 @@ export function demoAvailableSlots(input: {
   const existing = input.appointments ?? syntheticAppointments(date);
   return availableSlots({
     service, staffId, staffIds: practitioners.map(person => person.id),
-    opens: window.opens, closes: window.closes, interval: rules.slotIntervalMinutes,
+    periods: [window], interval: rules.slotIntervalMinutes,
     earliest: now.getTime() + rules.minimumNoticeMinutes * 60_000,
     instant: minute => localMinutesAsUtc(date, minute, rules.utcOffsetMinutes),
     occupied: existing.map(appointment => ({

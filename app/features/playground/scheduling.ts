@@ -1,4 +1,5 @@
-export type WorkingPeriod = { opens: number; closes: number };
+import { mergePeriods, type WorkingPeriod } from "../booking/availability";
+export type { WorkingPeriod } from "../booking/availability";
 /** Sunday=0. Empty periods mean closed. Staff inherit this business schedule. */
 export type WeeklyHours = WorkingPeriod[][];
 export const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -13,13 +14,7 @@ export function validHours(hours: WeeklyHours) {
 }
 export function dayPeriods(hours: WeeklyHours, date: string): WorkingPeriod[] {
   if (!validHours(hours)) return [];
-  const periods = [...(hours[new Date(`${date}T12:00:00Z`).getUTCDay()] ?? [])].sort((a, b) => a.opens - b.opens);
-  // Touching windows have no closed period between them. Merge without double capacity.
-  return periods.reduce<WorkingPeriod[]>((result, p) => {
-    const previous = result.at(-1);
-    if (previous?.closes === p.opens) previous.closes = p.closes; else result.push({ ...p });
-    return result;
-  }, []);
+  return mergePeriods(hours[new Date(`${date}T12:00:00Z`).getUTCDay()] ?? []);
 }
 export function copyHours(hours: WeeklyHours, source: number, targets: number[]): WeeklyHours {
   return hours.map((periods, day) => structuredClone(targets.includes(day) ? hours[source] : periods));
