@@ -207,12 +207,12 @@ export class PlaygroundSession implements BookingAdapter {
     if (date < today || date > addDays(today, 14)) return [];
     const service = c.services.find(x => x.id === serviceId);
     if (!service || !service.locationIds.includes(c.location.id)) return [];
-    return dayPeriods(c.hours, date).flatMap(period => availableSlots({ service, staffId, staffIds: c.staff.filter(p => p.locationIds.includes(c.location.id)).map(p => p.id),
-      opens: period.opens, closes: period.closes, interval: c.startInterval, earliest: this.clock() + 120 * 60_000,
+    return availableSlots({ service, staffId, staffIds: c.staff.filter(p => p.locationIds.includes(c.location.id)).map(p => p.id),
+      periods: dayPeriods(c.hours, date), interval: c.startInterval, earliest: this.clock() + 120 * 60_000,
       instant: dayClock(date, c.business.timezone), occupied: [
         ...s.appointments.map(a => ({ staffId: a.staffId, start: a.start, end: actorId && canOverrideBuffer(c, actorId, a.staffId) ? a.start + a.durationMinutes * 60_000 : a.end })),
         ...simulatedCalendar(s.calendar).busyIntervals(),
-      ] }));
+      ] });
   }
   book(date: string, serviceId: string, minute: number, staffId: string): string | null {
     return this.commitBooking(date, serviceId, minute, staffId);
