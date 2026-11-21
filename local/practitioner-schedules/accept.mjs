@@ -2,21 +2,11 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { test } from 'node:test';
 import { readPractitionerDay } from '../../app/lib/practitioner-schedule.server.ts';
-import { authorize, newUser, ok, registerClient, request, rpc, signIn, sql, uuid } from './fixture.mjs';
+import { authorize, createBusiness, newUser, ok, registerClient, request, rpc, signIn, sql, uuid } from './fixture.mjs';
 
 const client = await registerClient();
 const owner = await newUser(), admin = await newUser(), staff = await newUser(), outsider = await newUser();
 const ownerToken = await authorize(client,owner.token);
-async function createBusiness(token) {
-  const {tenant_id, membership_id} = await ok(await rpc(token,'bootstrap_setup_tenant',{request_key:randomUUID()}));
-  const target = uuid(tenant_id);
-  await ok(await rpc(token,'save_tenant_business_settings',{target,expected_revision:0,display_name:'Synthetic business',
-    timezone:'America/New_York',default_locale:'en-ZA',default_currency:'ZAR',staff_member_singular:null,staff_member_plural:null}));
-  const person = await ok(await rpc(token,'save_tenant_staff',{target,staff:null,expected:0,attributes:{
-    name:'Synthetic practitioner',public_display_name:null,biography:null,status:'ACTIVE',public_visible:false,
-    online_bookable:true,no_preference_eligible:true,sort_order:0}}));
-  return {target,practitioner:uuid(person.staff_id),member:uuid(membership_id)};
-}
 const {target,practitioner,member} = await createBusiness(ownerToken);
 const key = {target,practitioner};
 const adminMember = randomUUID(), staffMember = randomUUID();
