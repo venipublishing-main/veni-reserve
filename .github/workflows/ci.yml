@@ -156,7 +156,7 @@ jobs:
           ref: aac1382f41dfb1e7bb8bf11d5ee1f74a6700d274
           path: .tmp/website
           persist-credentials: false
-      - name: Replay Website M2 and the M3.2 and M3.3 candidates in a disposable project
+      - name: Replay Website M2 and the M3 scheduling candidates in a disposable project
         run: |
           stack="$RUNNER_TEMP/reserve-m32"
           node local/practitioner-schedules/prepare.mjs .tmp/website "$stack"
@@ -165,6 +165,8 @@ jobs:
         run: node local/practitioner-schedules/accept.mjs "$RUNNER_TEMP/reserve-m32"
       - name: Exercise dated absences, location closures and authorised day reads
         run: node local/practitioner-schedules/exceptions.mjs "$RUNNER_TEMP/reserve-m32"
+      - name: Resolve M2 eligibility and effective service rules with genuine OAuth
+        run: node local/practitioner-schedules/service-day.mjs "$RUNNER_TEMP/reserve-m32"
       - name: Local database security advisors
         run: pnpm exec supabase db advisors --local --workdir "$RUNNER_TEMP/reserve-m32" --type security --level warn --fail-on error
       - if: always()
