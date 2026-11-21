@@ -1,0 +1,25 @@
+project_id = "reserve_m32_local"
+
+[api]
+port = 59421
+schemas = ["public","reserve"]
+extra_search_path = ["public","extensions"]
+
+[db]
+port = 59422
+shadow_port = 59420
+major_version = 17
+
+[db.seed]
+enabled = false
+
+[auth]
+site_url = "http://127.0.0.1:59431"
+enable_signup = true
+
+[auth.email]
+enable_confirmations = false
+
+[auth.oauth_server]
+enabled = true
+authorization_url_path = "/account/authorize/"

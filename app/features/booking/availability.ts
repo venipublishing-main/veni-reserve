@@ -19,10 +19,10 @@ type DayRules = {
   occupied: readonly BusyInterval[];
 };
 
-type Rejection = "invalid_configuration" | "invalid_local_time" | "off_grid" |
+export type AvailabilityRejection = "invalid_configuration" | "invalid_local_time" | "off_grid" |
   "outside_staff_hours" | "outside_location_hours" | "inside_notice_period" |
   "beyond_horizon" | "busy";
-type Decision = { ok: false; reason: Rejection } |
+export type AvailabilityDecision = { ok: false; reason: AvailabilityRejection } |
   { ok: true; start: number; serviceEnd: number; occupiedStart: number; occupiedEnd: number };
 
 export function mergePeriods(periods: readonly WorkingPeriod[]): WorkingPeriod[] {
@@ -39,8 +39,10 @@ function validPeriod({ opens, closes }: WorkingPeriod) {
   return Number.isInteger(opens) && Number.isInteger(closes) && opens >= 0 && opens < closes && closes <= 1440;
 }
 
+export type PractitionerDayInput = DayRules & { date: string; timezone: string };
+
 /** Evaluate already-resolved rules for one eligible practitioner at one location. */
-export function practitionerDay(input: DayRules & { date: string; timezone: string }) {
+export function practitionerDay(input: PractitionerDayInput) {
   return prepareDay(input, dayClock(input.date, input.timezone));
 }
 
@@ -57,7 +59,7 @@ function prepareDay(rules: DayRules, instant: LocalClock) {
   const staff = mergePeriods(rules.staffPeriods);
   const location = rules.locationPeriods && mergePeriods(rules.locationPeriods);
 
-  function check(minute: number): Decision {
+  function check(minute: number): AvailabilityDecision {
     if (!valid) return { ok: false, reason: "invalid_configuration" };
     if (!Number.isInteger(minute) || minute < 0 || minute >= 1440) return { ok: false, reason: "invalid_local_time" };
     const start = instant(minute);
