@@ -21,6 +21,8 @@ for (const file of ['20260903_001_veni_account_foundation.sql','20260903071048_r
   writeFileSync(join(migrations,name),git('show',ref+':supabase/migrations/'+file)+'\n');
 }
 const directory = 'integration/veni-publishing/supabase/migrations';
-const candidates = readdirSync(directory).filter(f => f.endsWith('_reserve_practitioner_schedules.sql'));
-assert.equal(candidates.length,1);
-copyFileSync(join(directory,candidates[0]),join(migrations,candidates[0]));
+for (const suffix of ['_reserve_practitioner_schedules.sql','_reserve_dated_exceptions.sql']) {
+  const candidates = readdirSync(directory).filter(f => f.endsWith(suffix));
+  assert.equal(candidates.length,1);
+  copyFileSync(join(directory,candidates[0]),join(migrations,candidates[0]));
+}

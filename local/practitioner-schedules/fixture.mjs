@@ -72,3 +72,18 @@ export async function authorize(client, websiteToken) {
     body:new URLSearchParams({grant_type:'authorization_code',redirect_uri:callback,code:redirect.searchParams.get('code'),code_verifier:verifier})}));
   return result.access_token;
 }
+
+export async function createPractitioner(token,target,name) {
+  const person = await ok(await rpc(token,'save_tenant_staff',{target,staff:null,expected:0,attributes:{
+    name,public_display_name:null,biography:null,status:'ACTIVE',public_visible:false,
+    online_bookable:true,no_preference_eligible:true,sort_order:0}}));
+  return uuid(person.staff_id);
+}
+
+export async function createBusiness(token,timezone='America/New_York') {
+  const {tenant_id, membership_id} = await ok(await rpc(token,'bootstrap_setup_tenant',{request_key:randomUUID()}));
+  const target = uuid(tenant_id);
+  await ok(await rpc(token,'save_tenant_business_settings',{target,expected_revision:0,display_name:'Synthetic business',
+    timezone,default_locale:'en-ZA',default_currency:'ZAR',staff_member_singular:null,staff_member_plural:null}));
+  return {target,practitioner:await createPractitioner(token,target,'Synthetic practitioner'),member:uuid(membership_id)};
+}

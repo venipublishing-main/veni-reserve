@@ -1,6 +1,7 @@
 /** All periods belong to one local day. Occupancy and busy intervals are half-open. */
 export type WorkingPeriod = { opens: number; closes: number };
 export type BusyInterval = { staffId: string; start: number; end: number };
+export type DatedExclusion = { kind: "practitioner_absent" | "location_closed"; start: number; end: number };
 export type AvailableSlot = { startMinute: number; staffId: string };
 type LocalClock = (minute: number) => number | null;
 
@@ -17,11 +18,12 @@ type DayRules = {
   earliest: number;
   latest?: number;
   occupied: readonly BusyInterval[];
+  exclusions?: readonly DatedExclusion[];
 };
 
 export type AvailabilityRejection = "invalid_configuration" | "invalid_local_time" | "off_grid" |
   "outside_staff_hours" | "outside_location_hours" | "inside_notice_period" |
-  "beyond_horizon" | "busy";
+  "beyond_horizon" | "busy" | DatedExclusion["kind"];
 export type AvailabilityDecision = { ok: false; reason: AvailabilityRejection } |
   { ok: true; start: number; serviceEnd: number; occupiedStart: number; occupiedEnd: number };
 
@@ -49,7 +51,9 @@ export function practitionerDay(input: PractitionerDayInput) {
 function prepareDay(rules: DayRules, instant: LocalClock) {
   const { durationMinutes, bufferBeforeMinutes, bufferAfterMinutes, interval, earliest, latest } = rules;
   const busy = rules.occupied.filter(entry => entry.staffId === rules.staffId);
-  const valid = Number.isInteger(interval) && interval > 0 && interval <= 1440 &&
+  const exclusions = rules.exclusions ?? [];
+  const valid = exclusions.every(e => (e.kind === "practitioner_absent" || e.kind === "location_closed") &&
+    Number.isFinite(e.start) && Number.isFinite(e.end) && e.start < e.end) && Number.isInteger(interval) && interval > 0 && interval <= 1440 &&
     Number.isSafeInteger(durationMinutes) && durationMinutes > 0 &&
     Number.isSafeInteger(bufferBeforeMinutes) && bufferBeforeMinutes >= 0 &&
     Number.isSafeInteger(bufferAfterMinutes) && bufferAfterMinutes >= 0 &&
@@ -79,7 +83,12 @@ function prepareDay(rules: DayRules, instant: LocalClock) {
       occupiedEnd - occupiedStart !== (until - from) * 60_000) return { ok: false, reason: "invalid_local_time" };
     if (start < earliest) return { ok: false, reason: "inside_notice_period" };
     if (latest !== undefined && start > latest) return { ok: false, reason: "beyond_horizon" };
-    if (busy.some(b => occupiedStart < b.end && b.start < occupiedEnd)) return { ok: false, reason: "busy" };
+    const overlaps = (b: { start: number; end: number }) => occupiedStart < b.end && b.start < occupiedEnd;
+    // An otherwise eligible start gets a stable reason even when several exclusions overlap.
+    for (const kind of ["practitioner_absent", "location_closed"] as const) {
+      if (exclusions.some(e => e.kind === kind && overlaps(e))) return { ok: false, reason: kind };
+    }
+    if (busy.some(overlaps)) return { ok: false, reason: "busy" };
     return { ok: true, start, serviceEnd, occupiedStart, occupiedEnd };
   }
 
